@@ -1,0 +1,206 @@
+// pi-penecho — PenEcho ↔ pi agent 桥接服务(HTTP 路由层)
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  CONFIG_FILE, loadConfig, saveConfig, activeProfile, maskedKey,
+} from "./config.mjs";
+import {
+  initAgent, applyRuntime, getAgent, runTutorTurn, resetSession, undoTurn,
+  turnLog, canvasSystemRef, fetchedModelsRef,
+} from "./bridge.mjs";
+import { listPersonas } from "./prompt.mjs";
+
+const PORT = Number(process.env.PI_PENECHO_PORT || 9191);
+const ADMIN_HTML = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "admin.html");
+
+// 日志统一带时间戳
+const _log = console.log, _err = console.error;
+console.log = (...a) => _log(new Date().toTimeString().slice(0, 8), ...a);
+console.error = (...a) => _err(new Date().toTimeString().slice(0, 8), ...a);
+
+// ---------- 配置 + 热更新 ----------
+
+let cfg = loadConfig();
+let configMtime = 0;
+try { configMtime = fs.statSync(CONFIG_FILE).mtimeMs; } catch {}
+
+function hotReload() {
+  try {
+    const m = fs.statSync(CONFIG_FILE).mtimeMs;
+    if (m !== configMtime) {
+      configMtime = m;
+      cfg = loadConfig();
+      applyRuntime(cfg, fetchedModelsRef.value);
+      console.log(`[config] 热加载: ${activeProfile(cfg).apiUrl} model=${activeProfile(cfg).model} thinking=${cfg.thinkingLevel} persona=${cfg.persona}`);
+    }
+  } catch {}
+}
+
+initAgent(cfg);
+
+const upstreamEndpoint = () => activeProfile(cfg).apiUrl.replace(/\/+$/, "") + "/v1/messages";
+
+function publicConfig() {
+  const p = activeProfile(cfg);
+  return {
+    activeProfile: cfg.activeProfile,
+    profileNames: Object.keys(cfg.profiles),
+    apiUrl: p.apiUrl,
+    apiKeyMasked: maskedKey(p),
+    model: p.model,
+    contextWindow: p.contextWindow,
+    maxTokens: p.maxTokens,
+    thinkingLevel: cfg.thinkingLevel,
+    keepImages: cfg.keepImages,
+    boardFontSize: cfg.boardFontSize,
+    persona: cfg.persona,
+    personas: listPersonas().map((x) => ({ id: x.id, name: x.name, description: x.description, workspace: x.workspace })),
+    knownModels: fetchedModelsRef.value.length ? fetchedModelsRef.value : ["k3", "k3-256k", "kimi-for-coding", "kimi-for-coding-highspeed"].map((id) => ({ id, name: id })),
+    knownThinking: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+  };
+}
+
+function readBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
+const HOP = new Set(["host", "content-length", "connection", "transfer-encoding", "content-encoding"]);
+const json = (res, status, obj) => { res.writeHead(status, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
+
+// ---------- 路由 ----------
+
+const server = http.createServer(async (req, res) => {
+  // 控制台
+  if (req.method === "GET" && req.url === "/") {
+    try { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(fs.readFileSync(ADMIN_HTML, "utf8")); }
+    catch { res.writeHead(404); return res.end("public/admin.html missing"); }
+  }
+  if (req.method === "GET" && req.url === "/health") return json(res, 200, { ok: true, turns: getAgent().state.messages.length });
+  if (req.method === "GET" && req.url === "/config") return json(res, 200, publicConfig());
+
+  if (req.method === "POST" && req.url === "/config/fetch-models") {
+    const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+    try {
+      const url = String(body.apiUrl || activeProfile(cfg).apiUrl).replace(/\/+$/, "");
+      const key = body.apiKey || activeProfile(cfg).apiKey;
+      const r = await fetch(url + "/v1/models", { headers: { "x-api-key": key, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(15000) });
+      if (!r.ok) throw new Error(`端点返回 ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      const j = await r.json();
+      fetchedModelsRef.value = (j.data || []).map((m) => ({ id: m.id, name: m.display_name || m.id, context: m.context_length }));
+      return json(res, 200, { ok: true, models: fetchedModelsRef.value });
+    } catch (err) { return json(res, 400, { error: String(err.message || err) }); }
+  }
+
+  if (req.method === "POST" && req.url === "/config") {
+    const patch = JSON.parse((await readBody(req)).toString("utf8"));
+    try {
+      const p = activeProfile(cfg);
+      if (patch.apiUrl !== undefined) {
+        const u = String(patch.apiUrl).trim().replace(/\/+$/, "");
+        if (!/^https?:\/\/[^/]+/.test(u)) throw new Error("apiUrl 格式不对");
+        p.apiUrl = u;
+      }
+      if (patch.apiKey) p.apiKey = String(patch.apiKey); // 空=不变
+      if (patch.model !== undefined) p.model = String(patch.model);
+      if (patch.contextWindow !== undefined) p.contextWindow = Number(patch.contextWindow) || null;
+      if (patch.maxTokens !== undefined) p.maxTokens = Number(patch.maxTokens) || null;
+      if (patch.thinkingLevel !== undefined) cfg.thinkingLevel = String(patch.thinkingLevel);
+      if (patch.keepImages !== undefined) cfg.keepImages = Math.max(0, Math.min(32, Number(patch.keepImages) || 0));
+      if (patch.boardFontSize !== undefined) cfg.boardFontSize = Math.max(16, Math.min(200, Number(patch.boardFontSize) || 0)) || null;
+      if (patch.persona !== undefined) cfg.persona = String(patch.persona);
+      saveConfig(cfg);
+      configMtime = fs.statSync(CONFIG_FILE).mtimeMs;
+      applyRuntime(cfg, fetchedModelsRef.value);
+      console.log(`[config] 已更新: ${p.apiUrl} model=${p.model} thinking=${cfg.thinkingLevel} persona=${cfg.persona}`);
+      return json(res, 200, { ok: true, ...publicConfig() });
+    } catch (err) { return json(res, 400, { error: String(err.message || err) }); }
+  }
+
+  if (req.method === "POST" && req.url === "/profiles") {
+    const body = JSON.parse((await readBody(req)).toString("utf8"));
+    try {
+      const { action, name } = body;
+      if (!name || !/^[\w一-龥-]+$/.test(name)) throw new Error("profile 名称不合法");
+      if (action === "save-as") {
+        cfg.profiles[name] = { ...activeProfile(cfg) };
+        cfg.activeProfile = name;
+      } else if (action === "switch") {
+        if (!cfg.profiles[name]) throw new Error("profile 不存在: " + name);
+        cfg.activeProfile = name;
+      } else if (action === "delete") {
+        if (Object.keys(cfg.profiles).length <= 1) throw new Error("至少保留一个 profile");
+        delete cfg.profiles[name];
+        if (cfg.activeProfile === name) cfg.activeProfile = Object.keys(cfg.profiles)[0];
+      } else throw new Error("未知 action: " + action);
+      saveConfig(cfg);
+      configMtime = fs.statSync(CONFIG_FILE).mtimeMs;
+      applyRuntime(cfg, fetchedModelsRef.value);
+      console.log(`[profiles] ${action} → ${name},当前 ${cfg.activeProfile}`);
+      return json(res, 200, { ok: true, ...publicConfig() });
+    } catch (err) { return json(res, 400, { error: String(err.message || err) }); }
+  }
+
+  if (req.method === "POST" && req.url === "/session/reset") { await resetSession(); return json(res, 200, { ok: true }); }
+  if (req.method === "POST" && req.url === "/session/undo") { return json(res, 200, { ok: true, removed: await undoTurn() }); }
+  if (req.method === "GET" && req.url === "/session/turns") return json(res, 200, turnLog.slice(-50).reverse());
+
+  if (req.method !== "POST" || req.url !== "/v1/messages") { res.writeHead(404); return res.end("not found"); }
+
+  // ---- PenEcho 入口 ----
+  hotReload();
+  const raw = await readBody(req);
+  let body;
+  try { body = JSON.parse(raw.toString("utf8")); } catch { res.writeHead(400); return res.end("bad json"); }
+
+  const content = body?.messages?.[0]?.content;
+  const hasImage = Array.isArray(content) && content.some((b) => b?.type === "image");
+  console.log(`[req] hasImage=${hasImage} system=${typeof body.system === "string" ? body.system.length : typeof body.system} content=${Array.isArray(content) ? content.map((b) => b?.type).join("+") : typeof content}`);
+
+  if (!hasImage) {
+    // 无图请求(配置测试等):原样透传上游,不进会话
+    try {
+      const headers = {};
+      for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k)) headers[k] = v;
+      headers["x-api-key"] = activeProfile(cfg).apiKey || headers["x-api-key"];
+      const up = await fetch(upstreamEndpoint(), { method: "POST", headers, body: raw });
+      const buf = Buffer.from(await up.arrayBuffer());
+      const rh = {};
+      up.headers.forEach((v, k) => { if (!HOP.has(k)) rh[k] = v; });
+      res.writeHead(up.status, rh);
+      return res.end(buf);
+    } catch (err) { return json(res, 502, { error: { message: err.message } }); }
+  }
+
+  const hasSystem = typeof body.system === "string" && body.system.length > 100;
+  if (hasSystem) canvasSystemRef.value = body.system;
+  if (!hasSystem && !canvasSystemRef.value) {
+    console.log("[req] 拒绝:带图请求无 system 且无缓存契约");
+    return json(res, 400, { type: "error", error: { type: "invalid_request_error", message: "pi-penecho: canvas request arrived without system prompt; restart the bridge while PenEcho is running" } });
+  }
+
+  const text = content.filter((b) => b?.type === "text").map((b) => b.text || "").join("\n");
+  const images = content
+    .filter((b) => b?.type === "image" && b?.source?.data)
+    .map((b) => ({ type: "image", data: b.source.data, mimeType: b.source.media_type || "image/png" }));
+
+  req.on("close", () => { if (!res.writableEnded) getAgent().abort(); });
+  try {
+    await runTutorTurn(text, images, res);
+    if (!res.writableEnded) { res.writeHead(499); res.end(); }
+  } catch (err) {
+    console.error("[tutor] 本轮失败:", err);
+    if (!res.writableEnded) json(res, 500, { type: "error", error: { type: "api_error", message: String(err.message || err) } });
+  }
+});
+
+server.listen(PORT, "127.0.0.1", () => {
+  const p = activeProfile(cfg);
+  console.log(`pi-penecho  http://127.0.0.1:${PORT}`);
+  console.log(`profile=${cfg.activeProfile}  model=${p.model}  thinking=${cfg.thinkingLevel}  persona=${cfg.persona}  keepImages=${cfg.keepImages}`);
+});

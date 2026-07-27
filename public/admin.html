@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pi-penecho · 控制台</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #16181d; color: #e6e8ec; max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #8b909a; font-size: 13px; margin-bottom: 20px; }
+  .card { background: #1f232b; border: 1px solid #2c313a; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 14px; color: #9aa0aa; margin-bottom: 12px; font-weight: 600; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .badge { background: #2a2f39; border-radius: 6px; padding: 4px 10px; font-size: 13px; font-family: ui-monospace, monospace; }
+  .badge.ok { color: #5fd68a; }
+  select, input { background: #14171c; color: #e6e8ec; border: 1px solid #3a404b; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  select:focus, input:focus { outline: 1px solid #5b8def; }
+  label { font-size: 13px; color: #9aa0aa; display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 110px; }
+  button { background: #5b8def; color: #fff; border: 0; border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  button:hover { background: #4a7de0; }
+  button.ghost { background: #2a2f39; }
+  button.ghost:hover { background: #343a46; }
+  button.danger { background: #b0484f; }
+  button.danger:hover { background: #c4555c; }
+  .turn { border-top: 1px solid #2c313a; padding: 8px 2px; font-size: 13px; }
+  .turn:first-child { border-top: 0; }
+  .turn .t { color: #6b7078; font-family: ui-monospace, monospace; font-size: 12px; margin-right: 8px; }
+  .turn .intent { color: #8ab4f8; margin-right: 8px; }
+  .turn .tools { color: #7ec98f; font-size: 12px; margin-left: 8px; }
+  .muted { color: #6b7078; font-size: 13px; }
+  .persona-desc { font-size: 12px; color: #6b7078; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2f8f53; padding: 10px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 9; }
+  .toast.show { opacity: 1; }
+  .toast.err { background: #b0484f; }
+</style>
+</head>
+<body>
+<h1>pi-penecho · 控制台</h1>
+<div class="sub">白板走 <a href="http://localhost:3888" style="color:#8ab4f8">localhost:3888</a> · 本页管配置与会话</div>
+
+<div class="card">
+  <h2>状态</h2>
+  <div class="row">
+    <span class="badge ok" id="st-ok">●</span>
+    <span class="badge" id="st-profile">-</span>
+    <span class="badge" id="st-model">-</span>
+    <span class="badge" id="st-thinking">-</span>
+    <span class="badge" id="st-turns">-</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>端点 Profile</h2>
+  <div class="row" style="margin-bottom:12px">
+    <label style="max-width:200px">当前 profile
+      <select id="pf-sel"></select>
+    </label>
+    <button class="ghost" onclick="saveAsProfile()">另存为新 profile</button>
+    <button class="ghost" onclick="deleteProfile()">删除</button>
+  </div>
+  <div class="row" style="margin-bottom:12px">
+    <label style="flex:2">API URL(Anthropic 兼容端点)
+      <input id="cfg-url" type="text" spellcheck="false">
+    </label>
+    <label>API Key(留空=不变)
+      <input id="cfg-key" type="password" spellcheck="false" autocomplete="off">
+    </label>
+  </div>
+  <div class="row" style="margin-bottom:12px">
+    <label style="flex:2">模型(「获取模型」从端点拉列表)
+      <span class="row" style="flex-wrap:nowrap">
+        <select id="cfg-model-sel" style="flex:1"></select>
+        <input id="cfg-model" placeholder="自定义模型 id" spellcheck="false" style="display:none;flex:1">
+      </span>
+    </label>
+    <label>上下文(空=自动)
+      <input id="cfg-ctx" type="number" min="1024" placeholder="自动" style="width:110px">
+    </label>
+    <label>maxTokens(空=自动)
+      <input id="cfg-maxtok" type="number" min="256" placeholder="自动" style="width:110px">
+    </label>
+  </div>
+  <div class="row">
+    <button class="ghost" onclick="fetchModels()">获取模型</button>
+    <span class="muted" id="cfg-hint"></span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>通用</h2>
+  <div class="row" style="margin-bottom:8px">
+    <label style="flex:2">Persona(白板角色)
+      <select id="cfg-persona"></select>
+    </label>
+    <label>思考档位
+      <select id="cfg-thinking"></select>
+    </label>
+    <label>板书字号
+      <input id="cfg-font" type="number" min="16" max="200" style="width:80px">
+    </label>
+    <label>保留白板图数
+      <input id="cfg-keep" type="number" min="0" max="32" style="width:80px">
+    </label>
+  </div>
+  <div class="row" style="margin-bottom:12px">
+    <span class="persona-desc" id="persona-desc"></span>
+  </div>
+  <div class="row">
+    <button onclick="saveCfg()">保存全部</button>
+    <span class="muted">保存即生效,不用重启;思考档 high 很慢(单轮可达十几分钟)</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>会话</h2>
+  <div class="row" style="margin-bottom:12px">
+    <button class="danger" onclick="resetSession()">新建对话</button>
+    <button class="ghost" onclick="undoTurn()">撤销上一轮</button>
+    <span class="muted">新建=清空记忆;误触发就撤销</span>
+  </div>
+  <div id="turns"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+async function j(url, opt) { const r = await fetch(url, opt); return r.json(); }
+function toast(msg, err) {
+  const t = $("toast");
+  t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+  setTimeout(() => t.className = "toast", 2200);
+}
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// 表单一经手碰,轮询不再覆盖
+let formTouched = false;
+for (const id of ["cfg-url","cfg-key","cfg-model","cfg-ctx","cfg-maxtok","cfg-keep","cfg-font","cfg-thinking","cfg-persona","cfg-model-sel","pf-sel"]) {
+  document.addEventListener("input", (e) => { if (e.target && e.target.id === id) formTouched = true; });
+  document.addEventListener("change", (e) => { if (e.target && e.target.id === id) formTouched = true; });
+}
+
+let lastModels = []; // fetch 拉到的模型(带 context)
+let lastCfg = null;
+
+function fillSelect(el, options, current, labelFn) {
+  el.innerHTML = options.map(o => {
+    const v = typeof o === "string" ? o : o.id;
+    const label = labelFn ? labelFn(o) : v;
+    return `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+function syncModelWidgets(current, known) {
+  const sel = $("cfg-model-sel"), inp = $("cfg-model");
+  const ids = (known || []).map(m => m.id);
+  if (current && !ids.includes(current)) ids.push(current);
+  fillSelect(sel, ids, current);
+  sel.insertAdjacentHTML("beforeend", `<option value="__custom__">✏️ 自定义…</option>`);
+  if (sel.value === "__custom__") { sel.value = current && ids.includes(current) ? current : "__custom__"; }
+  const isCustom = sel.value === "__custom__";
+  inp.style.display = isCustom ? "" : "none";
+  if (isCustom && document.activeElement !== inp) inp.value = "";
+}
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "cfg-model-sel") {
+    const v = e.target.value;
+    $("cfg-model").style.display = v === "__custom__" ? "" : "none";
+    // 选中模型时带出 context(自动填,可手改)
+    const hit = lastModels.find(m => m.id === v);
+    if (hit && hit.context) { $("cfg-ctx").placeholder = "自动(" + hit.context + ")"; }
+  }
+  if (e.target && e.target.id === "cfg-persona" && lastCfg) {
+    const p = (lastCfg.personas || []).find(x => x.id === e.target.value);
+    $("persona-desc").textContent = p ? (p.description || "") + (p.workspace ? " · 工作区:" + p.workspace : "") : "";
+  }
+});
+function currentModel() {
+  const sel = $("cfg-model-sel");
+  return sel.value === "__custom__" ? $("cfg-model").value.trim() : sel.value;
+}
+
+async function refresh() {
+  try {
+    const [cfg, health, turns] = await Promise.all([j("/config"), j("/health"), j("/session/turns")]);
+    lastCfg = cfg;
+    $("st-ok").textContent = health.ok ? "● 在线" : "○ 异常";
+    $("st-profile").textContent = "profile:" + cfg.activeProfile;
+    $("st-model").textContent = cfg.model;
+    $("st-thinking").textContent = "思考:" + cfg.thinkingLevel;
+    $("st-turns").textContent = "消息数:" + health.turns;
+    if (!formTouched) {
+      fillSelect($("pf-sel"), cfg.profileNames, cfg.activeProfile);
+      $("cfg-url").value = cfg.apiUrl;
+      $("cfg-key").placeholder = cfg.apiKeyMasked ? "已保存 " + cfg.apiKeyMasked : "未设置";
+      syncModelWidgets(cfg.model, cfg.knownModels);
+      $("cfg-ctx").value = cfg.contextWindow ?? "";
+      $("cfg-maxtok").value = cfg.maxTokens ?? "";
+      fillSelect($("cfg-persona"), cfg.personas || [], cfg.persona, (p) => p.name + " (" + p.id + ")");
+      fillSelect($("cfg-thinking"), cfg.knownThinking, cfg.thinkingLevel);
+      $("cfg-font").value = cfg.boardFontSize ?? "";
+      $("cfg-keep").value = cfg.keepImages;
+      const p = (cfg.personas || []).find(x => x.id === cfg.persona);
+      $("persona-desc").textContent = p ? (p.description || "") + (p.workspace ? " · 工作区:" + p.workspace : "") : "";
+    }
+    $("turns").innerHTML = turns.length
+      ? turns.map(x => `<div class="turn"><span class="t">${new Date(x.t).toTimeString().slice(0,8)}</span><span class="intent">${x.intent}</span>${escapeHtml(x.observed || "")}${x.tools?.length ? `<span class="tools">⚒ ${x.tools.join(",")}</span>` : ""}</div>`).join("")
+      : `<div class="muted">还没有轮次</div>`;
+  } catch (e) { $("st-ok").textContent = "○ 连接失败"; }
+}
+
+async function fetchModels() {
+  $("cfg-hint").textContent = "正在拉取模型列表…";
+  const r = await j("/config/fetch-models", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ apiUrl: $("cfg-url").value, apiKey: $("cfg-key").value || undefined }) });
+  if (r.ok) {
+    lastModels = r.models;
+    formTouched = false;
+    syncModelWidgets(currentModel() || r.models[0]?.id, r.models);
+    formTouched = true;
+    $("cfg-hint").textContent = `拉到 ${r.models.length} 个模型,选完记得保存`;
+  } else {
+    $("cfg-hint").textContent = "拉取失败:" + (r.error || "?");
+  }
+}
+
+async function saveCfg() {
+  const body = {
+    apiUrl: $("cfg-url").value, model: currentModel(),
+    contextWindow: Number($("cfg-ctx").value) || null, maxTokens: Number($("cfg-maxtok").value) || null,
+    persona: $("cfg-persona").value, thinkingLevel: $("cfg-thinking").value,
+    boardFontSize: Number($("cfg-font").value) || null, keepImages: Number($("cfg-keep").value),
+  };
+  if ($("cfg-key").value) body.apiKey = $("cfg-key").value;
+  const r = await j("/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.ok) { toast("已保存"); $("cfg-key").value = ""; formTouched = false; refresh(); } else toast("失败:" + (r.error || "?"), true);
+}
+
+async function switchProfile() {
+  const name = $("pf-sel").value;
+  if (name === lastCfg?.activeProfile) return;
+  const r = await j("/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "switch", name }) });
+  if (r.ok) { toast("已切换到 " + name); formTouched = false; refresh(); } else toast("失败:" + (r.error || "?"), true);
+}
+document.addEventListener("change", (e) => { if (e.target && e.target.id === "pf-sel") switchProfile(); });
+
+async function saveAsProfile() {
+  const name = prompt("新 profile 名称(当前表单内容会存进去):");
+  if (!name) return;
+  await saveCfg(); // 先保存当前表单
+  const r = await j("/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save-as", name }) });
+  if (r.ok) { toast("已存为 " + name); formTouched = false; refresh(); } else toast("失败:" + (r.error || "?"), true);
+}
+async function deleteProfile() {
+  const name = $("pf-sel").value;
+  if (!confirm(`删除 profile「${name}」?`)) return;
+  const r = await j("/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", name }) });
+  if (r.ok) { toast("已删除"); formTouched = false; refresh(); } else toast("失败:" + (r.error || "?"), true);
+}
+
+async function resetSession() {
+  if (!confirm("新建对话:清空当前会话记忆?")) return;
+  const r = await j("/session/reset", { method: "POST" });
+  r.ok ? (toast("已开始新对话"), refresh()) : toast("失败", true);
+}
+async function undoTurn() {
+  const r = await j("/session/undo", { method: "POST" });
+  r.ok ? (toast(r.removed ? "已撤销上一轮" : "没有可撤销的轮次"), refresh()) : toast("失败", true);
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
