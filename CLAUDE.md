@@ -56,6 +56,7 @@ public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 - **全新 syncthing 上 confirm 必缺 folder**:folder 落地(ensureSyncFolders)要在桥启动时+confirm 前各跑一次,否则「设备加了、共享 missing」。
 - **「Provider is not configured」= key 为空,不是网络问题**:pi-ai 的 applyAuth 在 overrides.apiKey 为空且 env 无 KIMI_API_KEY 时抛此错,assistant 消息 stopReason=error 原样进会话——空输出排查先看 bridge.log 的 [tutor][debug] lastMsg。
 - **模拟器 adb 杀 app 留孤儿进程**:kill 端口进程后 libnode_exec 可能残留占 9191,新桥 EADDRINUSE 崩溃循环;验收清场用 `kill -9 $(ps -A | grep libnode_exec)`(真机 force-stop/升级由系统杀全进程组,无此问题)。
+- **syncthing home 两端不同**:电脑端 `~/.config/syncthing`,手机端(APK)是 `$HOME/sync`(=files/sync)。pair.mjs 的 ST_HOME 必须存在性探测自适应——写死 ~/.config 时手机端控制台配对/文件夹卡静默全坏(读不到 apikey 报「未安装」)。
 
 - **0.0.0.0 不能进浏览器**:PenEcho 启动日志的 `http://0.0.0.0:3888` 是监听声明,系统代理会 502。访问永远用 `localhost:3888`。
 - **角色边界必须写死**:不约束时 agent 会把职责文件(CLAUDE.md)当板书素材抄给学生。persona 里的边界段不许删。

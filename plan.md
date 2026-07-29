@@ -111,6 +111,7 @@
 | 2026-07-29 | pi-session-scout 调研回报 | ①pi-agent-core harness 层有 JsonlSessionRepo/Session(磁盘持久化 create/open/list/delete/fork),Agent 多实例无限制,messages 可序列化 → P4 优先评估复用(不重复造轮子) ②pi-ai/pi-agent-core 最后支持 Node20 的版本为 0.74.2,无 Node18 版 → nodejs-mobile 路线终局排除,ADR-1 直连内嵌确认为唯一路径 |
 
 | 2026-07-29 | P2 开工(单 APK 成品化) | build-rootfs.sh 完成并跑通:物料就位 jniLibs(libnode_exec.so 43M+libsyncthing_exec.so 26M)+ assets/rootfs(libs 45M 9库/bridge 1.1M/penecho 1.4M/personas/public/manifest.txt/.version);EngineBoot.java(解压+版本戳、sync generate、spawn 三进程 env 注入、崩溃退避重拉、NO_PROXY 健康探测)与 EngineService.java(前台 dataSync+通知,START_STICKY)写完;待:MainActivity 改造(删 Termux 流程)、manifest 权限与 service 声明、build-apk.sh 删 termux.apk 拷贝、模拟器验收 |
+| 2026-07-30 | v1.0.1(真机反馈驱动) | ①同步进度条(控制台文件夹卡,syncProgress 对在线对端最小完成度+剩余量/离线标记)②ST_HOME 平台自适应(手机端 $HOME/sync;此前手机端控制台配对/文件夹卡静默全坏)③配对完成页直达进度;用户真平板 PA2573 已自行配对并同步完成(100%/99.9%) |
 
 ## Phase 2 中途快照(压缩保护 · 2026-07-29 晚)
 
