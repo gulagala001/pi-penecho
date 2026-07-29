@@ -1,25 +1,19 @@
 package com.penecho.board;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.DhcpInfo;
-import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 import android.text.format.Formatter;
 import android.view.Gravity;
 import android.view.View;
@@ -39,9 +33,7 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -50,21 +42,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * pi-penecho 白板壳(单 APK 形态):
- *  - 发动机(Termux)内嵌在 assets,未装时一键安装(PackageInstaller 流式,无需 androidx)
- *  - 自动在局域网发现电脑端安装门户(:9288),生成初始化命令并复制到剪贴板
- *  - 全屏 WebView 加载 127.0.0.1:3888;服务未就绪显示等待页;浮动菜单切控制台
+ * pi-penecho 白板(单 APK 一体化):发动机(桥+白板服务+同步)内嵌,EngineBoot 全权拉起。
+ * 本 Activity 只负责:全屏 WebView 显示、启动进度展示、就绪后加载白板、浮动菜单。
  */
 public class MainActivity extends Activity {
 
-    private static final String TERMUX_PKG = "com.termux";
     private static final String BOARD_URL = "http://127.0.0.1:3888/";
     private static final String ADMIN_URL = "http://127.0.0.1:9191/";
-    private static final String HEALTH_URL = "http://127.0.0.1:9191/health";
     private static final String CONFIG_URL = "http://127.0.0.1:9191/config";
-    private static final int PORTAL_PORT = 9288; // 电脑端安装门户(server.mjs)
-    private static final int WAIT_TIMEOUT_MS = 90_000;
-    private static final String ACTION_INSTALL_RESULT = "com.penecho.board.INSTALL_RESULT";
+    static final int PORTAL_PORT = 9288; // 电脑端安装门户(P3 配对发现用)
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout root;
@@ -74,19 +60,18 @@ public class MainActivity extends Activity {
     private Button btnPrimary;
     private Button btnSecondary;
     private volatile boolean keyChecked = false;
-    private String macBaseUrl = null; // 局域网发现到的电脑端,如 http://192.168.5.16:9288
-    private boolean pendingInstall = false;   // 去系统设置开安装权限后,回来继续装
-    private boolean waitingServices = false;  // 服务探测线程在跑(防重入)
-    private boolean servicesReady = false;
+    private volatile boolean servicesReady = false;
 
-    private final BroadcastReceiver installResult = new BroadcastReceiver() {
-        @Override public void onReceive(Context ctx, Intent intent) {
-            int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
-            if (status == PackageInstaller.STATUS_SUCCESS) {
-                ui.post(() -> showInitGuide());
-            } else {
-                ui.post(() -> showStep("发动机安装被取消或失败。\n\n点下方按钮重试;", "重试安装", v -> installEngine()));
-            }
+    private final EngineBoot.Listener engineListener = new EngineBoot.Listener() {
+        @Override public void onProgress(String msg) {
+            ui.post(() -> showWait(msg, null, null));
+        }
+        @Override public void onReady() {
+            ui.post(() -> onServicesReady());
+        }
+        @Override public void onFailed(String reason) {
+            ui.post(() -> showStep("发动机启动失败:" + reason + "\n\n日志在 文件管理/Android/data/com.penecho.board/files/logs",
+                    "重试", v -> EngineBoot.get(MainActivity.this).start(engineListener)));
         }
     };
 
@@ -108,152 +93,24 @@ public class MainActivity extends Activity {
         root.addView(buildFab(), fabLp);
         setContentView(root);
 
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(installResult, new IntentFilter(ACTION_INSTALL_RESULT), Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(installResult, new IntentFilter(ACTION_INSTALL_RESULT));
+        // 通知权限(API 33+):前台服务通知才可见,仅提示一次
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
 
-        decideFlow();
+        showWait("正在启动智能体…", null, null);
+        EngineService.setUiListener(engineListener);
+        Intent svc = new Intent(this, EngineService.class);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(svc);
+        else startService(svc);
     }
 
-    // ---------- 启动流程:装发动机 → 初始化引导 → 等服务 → 白板 ----------
-
-    private void decideFlow() {
-        if (!isInstalled(TERMUX_PKG)) {
-            showStep("欢迎使用 pi-penecho 白板!\n\n还差一步:安装「发动机」(智能体在白板后面工作的环境,约 33MB)。\n\n点下面按钮,系统会问你「是否允许安装」,确认即可。",
-                    "安装发动机", v -> installEngine());
-        } else {
-            waitForServicesWithGuide();
-        }
-    }
-
-    private boolean isInstalled(String pkg) {
-        try {
-            getPackageManager().getPackageInfo(pkg, 0);
-            return true;
-        } catch (PackageManager.NameNotFoundException e) {
-            return false;
-        }
-    }
-
-    /** PackageInstaller 流式安装 assets 里的 termux.apk(免 FileProvider/免 androidx) */
-    private void installEngine() {
-        // 安卓要求「允许本应用安装其他应用」先授权(API 26+);没有就引导去系统设置
-        if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
-            showStep("还差一个权限:\n\n安卓要求你亲口允许「PenEcho 白板」安装应用。\n\n点下方按钮会跳到系统设置,把「允许来自此来源的应用」**打开**,然后按返回键回来,安装会自动继续。",
-                    "去开启安装权限", v -> {
-                        pendingInstall = true;
-                        try {
-                            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:" + getPackageName())));
-                        } catch (Exception e) {
-                            // 少数 ROM 没有这个设置页:退到应用详情页让用户自己找
-                            try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.parse("package:" + getPackageName()))); }
-                            catch (Exception ignored) { }
-                        }
-                    });
-            return;
-        }
-        showWait("正在打开发动机安装器…", null, null);
-        new Thread(() -> {
-            PackageInstaller installer = getPackageManager().getPackageInstaller();
-            PackageInstaller.Session session = null;
-            try {
-                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                        PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-                int sessionId = installer.createSession(params);
-                session = installer.openSession(sessionId);
-                // 长度传 -1(未知):assets 可能被压缩存储,openFd 取长度会抛异常
-                try (OutputStream out = session.openWrite("termux.apk", 0, -1);
-                     InputStream in = getAssets().open("termux.apk")) {
-                    byte[] buf = new byte[64 * 1024];
-                    int n;
-                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
-                    session.fsync(out);
-                }
-                Intent intent = new Intent(ACTION_INSTALL_RESULT).setPackage(getPackageName());
-                PendingIntent pi = PendingIntent.getBroadcast(this, sessionId, intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
-                session.commit(pi.getIntentSender());
-            } catch (Exception e) {
-                if (session != null) session.abandon();
-                ui.post(() -> showStep("自动安装失败(" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")\n\n请把这行字拍给开发者;\n也可以手动安装:把电脑上的 termux.apk 发到本机点开。",
-                        "重试", v -> installEngine()));
-            }
-        }, "install-engine").start();
-    }
-
-    /** 初始化引导:发现电脑端门户 → 命令复制到剪贴板 → 引导打开 Termux 粘贴 */
-    private void showInitGuide() {
-        showWait("正在你家 WiFi 里寻找电脑…", null, null);
-        new Thread(() -> {
-            String base = discoverPortal();
-            macBaseUrl = base;
-            ui.post(() -> {
-                if (base == null) {
-                    showStep("发动机装好了!\n\n没找到电脑端的安装门户。请确认:\n1. 电脑上的桥在运行(控制台 http://localhost:9191 能打开)\n2. 平板和电脑连同一个 WiFi\n\n找到后点「重试寻找」。",
-                            "重试寻找", v -> showInitGuide(), "跳过,稍后在 Termux 里手动装", v -> waitForServices());
-                    return;
-                }
-                String cmd = "curl -sL " + base + "/setup.sh | bash -s " + base + "/pi-penecho-termux-arm64.tar.gz";
-                copyToClipboard(cmd);
-                showStep("发动机装好了,电脑也找到了(" + base + ")!\n\n初始化命令已自动复制到剪贴板。\n\n点下方按钮打开 Termux(黑窗口),在里面长按屏幕选「粘贴」,然后按回车,等它跑完(几分钟)。",
-                        "打开 Termux(命令已复制)", v -> {
-                            launchTermux();
-                            ui.postDelayed(this::waitForServicesWithGuide, 1500);
-                        }, "我已粘贴并跑完,继续", v -> waitForServices());
-            });
-        }, "discover").start();
-    }
-
-    private void waitForServicesWithGuide() {
-        showWait("正在连接白板服务…\n(若发动机刚初始化,请先在 Termux 里把命令跑完)", null, null);
-        waitForServices();
-    }
-
-    /** 子网扫描:找监听 PORTAL_PORT 的电脑端门户 */
-    private String discoverPortal() {
-        try {
-            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            if (wm == null) return null;
-            DhcpInfo d = wm.getDhcpInfo();
-            if (d == null || d.ipAddress == 0) return null;
-            String myIp = Formatter.formatIpAddress(d.ipAddress);
-            String prefix = myIp.substring(0, myIp.lastIndexOf('.') + 1);
-            ExecutorService pool = Executors.newFixedThreadPool(48);
-            AtomicBoolean found = new AtomicBoolean(false);
-            final String[] hit = new String[1];
-            for (int i = 1; i < 255; i++) {
-                final String ip = prefix + i;
-                if (ip.equals(myIp)) continue;
-                pool.execute(() -> {
-                    if (found.get()) return;
-                    String base = "http://" + ip + ":" + PORTAL_PORT;
-                    if (httpOk(base + "/setup.sh") && found.compareAndSet(false, true)) hit[0] = base;
-                });
-            }
-            pool.shutdown();
-            long deadline = System.currentTimeMillis() + 12_000;
-            while (System.currentTimeMillis() < deadline && !found.get()) sleep(200);
-            pool.shutdownNow();
-            return hit[0];
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private void launchTermux() {
-        try {
-            Intent it = getPackageManager().getLaunchIntentForPackage(TERMUX_PKG);
-            if (it != null) startActivity(it);
-        } catch (Exception ignored) { }
-    }
-
-    private void copyToClipboard(String text) {
-        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("初始化命令", text));
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 从后台回来服务仍未就绪:补一次启动(EngineBoot 幂等)
+        if (!servicesReady) EngineBoot.get(this).start(engineListener);
     }
 
     // ---------- 视图 ----------
@@ -276,10 +133,12 @@ public class MainActivity extends Activity {
             public void onReceivedError(WebView view, WebResourceRequest req,
                                         android.webkit.WebResourceError error) {
                 if (req.isForMainFrame()) {
-                    showWait("白板服务连接中断。\n服务可能被系统清理,点下方按钮重试;\n一直失败请到 Termux 里运行 start.sh", "重试连接", v -> {
-                        showWait("正在连接白板服务…", null, null);
-                        waitForServices();
-                    });
+                    servicesReady = false;
+                    showStep("白板服务连接中断。\n可能被系统清理,点下方按钮重连;",
+                            "重连", v -> {
+                                showWait("正在重连…", null, null);
+                                EngineBoot.get(MainActivity.this).start(engineListener);
+                            });
                 }
             }
         });
@@ -349,6 +208,7 @@ public class MainActivity extends Activity {
         showWait(msg, primaryLabel, primaryAction);
     }
 
+    @SuppressWarnings("unused")
     private void showStep(String msg, String primaryLabel, View.OnClickListener primaryAction,
                           String secondaryLabel, View.OnClickListener secondaryAction) {
         showWait(msg, primaryLabel, primaryAction);
@@ -357,48 +217,13 @@ public class MainActivity extends Activity {
         btnSecondary.setOnClickListener(secondaryAction);
     }
 
-    // ---------- 服务探测 ----------
-
-    private void waitForServices() {
-        if (waitingServices || servicesReady) return;
-        waitingServices = true;
-        new Thread(() -> {
-            long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MS;
-            while (System.currentTimeMillis() < deadline) {
-                if (httpOk(BOARD_URL) && httpOk(HEALTH_URL)) {
-                    waitingServices = false;
-                    ui.post(this::onServicesReady);
-                    return;
-                }
-                sleep(1500);
-            }
-            waitingServices = false;
-            ui.post(() -> showStep("等了很久服务还没起来。\n\n请确认发动机的初始化命令已在 Termux 里跑完;\n然后把 Termux 电池设为「无限制」防杀后台。",
-                    "重试连接", v -> { showWait("正在连接白板服务…", null, null); waitForServices(); },
-                    "重新初始化引导", v -> showInitGuide()));
-        }, "svc-wait").start();
-    }
+    // ---------- 就绪与首次 key 检测 ----------
 
     private void onServicesReady() {
         servicesReady = true;
         waitView.setVisibility(View.GONE);
         web.loadUrl(BOARD_URL);
         checkApiKeyOnce();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (pendingInstall) {
-            // 从「允许安装应用」系统设置回来:继续装发动机
-            pendingInstall = false;
-            installEngine();
-        } else if (waitView != null && waitView.getVisibility() == View.VISIBLE
-                && isInstalled(TERMUX_PKG) && !servicesReady && !waitingServices) {
-            // 从 Termux 初始化回来:自动重连服务
-            showWait("正在连接白板服务…", null, null);
-            waitForServices();
-        }
     }
 
     /** 首次就绪时检测桥里有没有 API key,没有就直接带用户去控制台填 */
@@ -419,12 +244,49 @@ public class MainActivity extends Activity {
         }, "key-check").start();
     }
 
+    // ---------- 电脑端门户发现(P3 配对用,保留) ----------
+
+    /** 子网扫描:找监听 PORTAL_PORT 的电脑端门户;模拟器额外内置 10.0.2.2 */
+    String discoverPortalBlocking() {
+        try {
+            // 模拟器:宿主电脑固定 10.0.2.2
+            if (httpOk("http://10.0.2.2:" + PORTAL_PORT + "/setup.sh")) {
+                return "http://10.0.2.2:" + PORTAL_PORT;
+            }
+            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wm == null) return null;
+            DhcpInfo d = wm.getDhcpInfo();
+            if (d == null || d.ipAddress == 0) return null;
+            String myIp = Formatter.formatIpAddress(d.ipAddress);
+            String prefix = myIp.substring(0, myIp.lastIndexOf('.') + 1);
+            ExecutorService pool = Executors.newFixedThreadPool(48);
+            AtomicBoolean found = new AtomicBoolean(false);
+            final String[] hit = new String[1];
+            for (int i = 1; i < 255; i++) {
+                final String ip = prefix + i;
+                if (ip.equals(myIp)) continue;
+                pool.execute(() -> {
+                    if (found.get()) return;
+                    String base = "http://" + ip + ":" + PORTAL_PORT;
+                    if (httpOk(base + "/setup.sh") && found.compareAndSet(false, true)) hit[0] = base;
+                });
+            }
+            pool.shutdown();
+            long deadline = System.currentTimeMillis() + 12_000;
+            while (System.currentTimeMillis() < deadline && !found.get()) sleep(200);
+            pool.shutdownNow();
+            return hit[0];
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // ---------- 工具 ----------
 
     private static boolean httpOk(String url) {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(url).openConnection();
+            c = (HttpURLConnection) new URL(url).openConnection(java.net.Proxy.NO_PROXY);
             c.setConnectTimeout(900);
             c.setReadTimeout(900);
             return c.getResponseCode() == 200;
@@ -436,7 +298,7 @@ public class MainActivity extends Activity {
     }
 
     private static String httpGet(String url) throws IOException {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection(java.net.Proxy.NO_PROXY);
         c.setConnectTimeout(3000);
         c.setReadTimeout(3000);
         try (BufferedReader r = new BufferedReader(
@@ -472,12 +334,6 @@ public class MainActivity extends Activity {
         if (web.canGoBack()) web.goBack();
         else if (url == null || !url.startsWith(BOARD_URL)) web.loadUrl(BOARD_URL);
         else super.onBackPressed();
-    }
-
-    @Override
-    protected void onDestroy() {
-        try { unregisterReceiver(installResult); } catch (Exception ignored) { }
-        super.onDestroy();
     }
 
     private int dp(int v) {

@@ -4,17 +4,19 @@ android {
     namespace "com.penecho.board"
     compileSdk 34
 
-    aaptOptions {
-        // assets/termux.apk 不压缩存储(PackageInstaller 读取更稳)
-        noCompress "apk"
-    }
-
     defaultConfig {
         applicationId "com.penecho.board"
         minSdk 26
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "2.0"
+    }
+
+    packagingOptions {
+        jniLibs {
+            // 内嵌 node/syncthing 必须真实解压到 nativeLibraryDir 才能 exec
+            useLegacyPackaging = true
+        }
     }
 
     buildTypes {

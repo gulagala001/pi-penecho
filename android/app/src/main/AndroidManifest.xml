@@ -4,15 +4,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- 内嵌发动机 APK 的一键安装(PackageInstaller) -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:label="PenEcho 白板"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-        <!-- usesCleartextTraffic:白板服务在平板本机 127.0.0.1,http 明文仅限回环 -->
+        <!-- usesCleartextTraffic:白板服务在设备本机 127.0.0.1,http 明文仅限回环 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -24,6 +25,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 发动机前台服务:桥+白板+同步常驻,防系统清理 -->
+        <service
+            android:name=".EngineService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
     </application>
 
 </manifest>

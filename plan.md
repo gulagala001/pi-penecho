@@ -30,7 +30,12 @@
 - **FEAT**: FEAT-1.2.2
 - 内容:rootfs 预制(node+bundle+syncthing+busybox+启动脚本);ForegroundService(dataSync+通知);首启引导状态机(装环境→发现电脑(内置 10.0.2.2)→输码位→就绪);子进程守护与自恢复
 - exit_criteria:①模拟器冷装 APK→走完引导到白板页显示,全程无浏览器/终端元素(UI dump 断言)②`adb shell am force-stop` 重开后 30s 内 3888/9191 恢复 200 ③白板 app 内手写模拟请求经 9191 全链路(test:bridge 对模拟器实例)通过
-- status: todo
+- status: **done**(2026-07-29)
+  - 证据 ①:APK 43M 冷装→BOOTING(解压 100M)→白板页完整显示(截图 p2-ready.png:PenEcho Ready+QUICK TOUR,无浏览器元素);桥 health ok/白板 37968B/syncthing 200(adb forward 19191/13888/18384 验证)
+  - 证据 ②:force-stop 后服务 000→am start 重开 **2s** 恢复 200(标准 30s)
+  - 证据 ③:run-as 预置含 key config(shell 管道法绕 SELinux)→ `BASE=http://127.0.0.1:19191 npm run test:bridge` 两轮全过(61.2s 板书 7 条 write_text + 19.0s 会话记忆)
+  - 组件:scripts/build-rootfs.sh(8 deb 提取+esbuild+penecho pack+manifest/version.txt);EngineBoot.java(版本戳解压/sync generate/spawn 三进程/崩溃退避重拉/start 幂等防 EADDRINUSE);EngineService.java(前台 dataSync);MainActivity 一体化重写(Termux 流程全删)
+  - 过程发现:①aapt 忽略点开头文件且残留 .version 进 manifest 会 FNFE(构建先 `find . -name ".*" -delete`)②run-as cwd 不可靠用绝对路径 ③shell 管道法(cat|run-as sh -c)绕 SELinux 写 app 私有目录 ④adb forward 撞 Mac 端口用高位映射(19191)
 
 ### Phase 3: 配对闭环(码+确认+文件夹方向)
 - **FEAT**: FEAT-2.2.1
@@ -78,6 +83,16 @@
 |------|------|------|
 | 2026-07-29 | L1-L5 建立 | 待 P1 开工 |
 | 2026-07-29 | pi-session-scout 调研回报 | ①pi-agent-core harness 层有 JsonlSessionRepo/Session(磁盘持久化 create/open/list/delete/fork),Agent 多实例无限制,messages 可序列化 → P4 优先评估复用(不重复造轮子) ②pi-ai/pi-agent-core 最后支持 Node20 的版本为 0.74.2,无 Node18 版 → nodejs-mobile 路线终局排除,ADR-1 直连内嵌确认为唯一路径 |
+
+| 2026-07-29 | P2 开工(单 APK 成品化) | build-rootfs.sh 完成并跑通:物料就位 jniLibs(libnode_exec.so 43M+libsyncthing_exec.so 26M)+ assets/rootfs(libs 45M 9库/bridge 1.1M/penecho 1.4M/personas/public/manifest.txt/.version);EngineBoot.java(解压+版本戳、sync generate、spawn 三进程 env 注入、崩溃退避重拉、NO_PROXY 健康探测)与 EngineService.java(前台 dataSync+通知,START_STICKY)写完;待:MainActivity 改造(删 Termux 流程)、manifest 权限与 service 声明、build-apk.sh 删 termux.apk 拷贝、模拟器验收 |
+
+## Phase 2 中途快照(压缩保护 · 2026-07-29 晚)
+
+**正在做**:android/ 主工程一体化改造,下一步=MainActivity 删除 decideFlow/installEngine/showInitGuide(Termux 流程),改为启动 EngineService→BOOTING(EngineBoot.Listener.onProgress)→onReady→白板;保留 buildWebView/buildWaitView/buildFab/discoverPortal/waitForServices/key 检测;manifest 删 REQUEST_INSTALL_PACKAGES,加 FOREGROUND_SERVICE/FOREGROUND_SERVICE_DATA_SYNC(API34)/POST_NOTIFICATIONS(API33)+`<service android:name=".EngineService" android:foregroundServiceType="dataSync" android:exported="false"/>`;build-apk.sh 删 assets/termux.apk 拷贝行;.gitignore 加 android/app/src/main/jniLibs/ 与 assets/rootfs/(二进制不入库,build-rootfs.sh 重取);验收=模拟器冷装→BOOTING→白板 200→adb forward 9191 后 BASE=http://127.0.0.1:9191 npm run test:bridge(debug 版可 run-as 预置含 key 的 config.json)。
+
+**环境速查**:JAVA_HOME=~/.local/java/temurin-21/Contents/Home;ANDROID_HOME=~/.local/android;gradle=~/.local/gradle-8.10.2/bin/gradle;adb=~/.local/android/platform-tools/adb;AVD 起法 scripts/emu/up.sh;gh=~/.local/bin/gh(已登录);release=gulagala001/pi-penecho v0.3.0(公开)。
+
+**调研结论(P4 用)**:pi-agent-core harness 层有 JsonlSessionRepo/Session(磁盘持久化 create/open/list/delete/fork),Agent 多实例无限制,messages 可 get/set 序列化;pi-ai 0.74.2=最后支持 Node20 版,无 Node18 版(降级路线死刑,ADR-1 直连内嵌唯一解)。
 
 ## 偏离记录
 

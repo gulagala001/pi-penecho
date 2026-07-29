@@ -39,6 +39,12 @@ public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 
 ## 血泪教训(别再踩)
 
+- **AGP jniLibs 只打包 *.so 后缀**:`libz.so.1`/`libcrypto.so.3` 这类带版本后缀的库会被静默丢弃!要 exec 的二进制伪装成 `lib*.so` 进 jniLibs(+`useLegacyPackaging=true`),但**依赖库走 assets 解压到 files/**,`LD_LIBRARY_PATH` 指过去(exec 需要 nativeLibraryDir,dlopen 只需 files 可读)。
+- **Android 14 模拟器系统代理劫回环**:`HttpURLConnection` 默认走系统代理,127.0.0.1 请求被发去 10.0.2.2;探测本机服务必须 `openConnection(Proxy.NO_PROXY)`。
+- **明文 HTTP 要 manifest 显式放行**:`usesCleartextTraffic="true"`,否则 `Cleartext HTTP traffic not permitted`(回环也拦)。
+- **.deb 在 Mac 用 bsdtar 解**(tar -xf),系统 `ar` 不认;Termux 的库与 CLI 分包(如 libsqlite ≠ sqlite)。
+- **node 24(Termux deb)依赖 9 个库**:libz.so.1、libcares.so、libsqlite3.so、libcrypto.so.3、libssl.so.3、libicudata/i18n/uc.so.78、libc++_shared.so;PT_INTERP=/system/bin/linker64,无 proot 可直连(已验证,见 plan P1)。
+
 - **0.0.0.0 不能进浏览器**:PenEcho 启动日志的 `http://0.0.0.0:3888` 是监听声明,系统代理会 502。访问永远用 `localhost:3888`。
 - **角色边界必须写死**:不约束时 agent 会把职责文件(CLAUDE.md)当板书素材抄给学生。persona 里的边界段不许删。
 - **thinkingLevel 别上 high**:实测单轮 15 分钟。medium≈15 秒。
