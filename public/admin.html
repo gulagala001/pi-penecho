@@ -126,6 +126,14 @@
 
 <div class="card">
   <h2>平板配对</h2>
+  <div class="row" style="align-items:flex-start;gap:16px;margin-bottom:14px">
+    <div id="qr-portal" style="background:#fff;padding:8px;border-radius:8px;min-width:140px;min-height:140px"></div>
+    <div class="muted" style="line-height:2">
+      ① 手机/平板<b style="color:#e8eaed">扫码</b>下载安装 app(需与电脑同一 WiFi)<br>
+      ② 装好后打开 app → 右下角 ≡ → <b style="color:#e8eaed">配对电脑</b><br>
+      ③ 点下方「生成配对码」,把 6 位码输进 app
+    </div>
+  </div>
   <div class="row" style="margin-bottom:8px">
     <button onclick="genCode()">生成配对码</button>
     <span class="muted">手机端打开「PenEcho 白板」→ 配对电脑 → 输入 6 位码</span>
@@ -147,6 +155,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/vendor/qrcode.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 async function j(url, opt) { const r = await fetch(url, opt); return r.json(); }
@@ -432,7 +441,21 @@ async function saveFolders() {
 }
 
 refresh();
+let qrLoaded = false;
+async function loadQr() {
+  if (qrLoaded) return;
+  try {
+    const d = await j("/lan-info");
+    if (!d.ok || !d.ips.length) return;
+    const url = `http://${d.ips[0]}:${d.portalPort}/`;
+    const qr = qrcode(0, "M"); qr.addData(url); qr.make();
+    $("qr-portal").innerHTML = qr.createImgTag(4, 0) +
+      `<div class="muted" style="text-align:center;font-size:12px;margin-top:4px;color:#666">${url}</div>`;
+    qrLoaded = true;
+  } catch { /* 下一轮再试 */ }
+}
 loadPairStatus();
+loadQr();
 setInterval(refresh, 5000);
 setInterval(loadPairStatus, 8000);
 </script>

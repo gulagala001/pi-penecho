@@ -70,7 +70,12 @@
 - **FEAT**: FEAT-2.1.2
 - 内容:desktop/main.mjs(桥+PenEcho+syncthing+门户同进程);首运向导(填 key→二维码);electron-builder 出 .app/.dmg(Windows exe 顺手);与 bash 常驻服务端口冲突处理
 - exit_criteria:①干净用户目录双击 .app→向导→填 key→窗口控制台可用(9191/3888/9288/8384 全在线)②首启向导二维码扫描可达安装页 ③asar 包内 personas/admin 资源读取正常(端到端一轮板书)
-- status: todo
+- status: **done**(2026-07-29)
+  - 证据 ①:launchd 三服务全 bootout(四端口全 DOWN)→ `open pi-penecho.app` → 2s 桥/白板 200、4s syncthing 200、门户 200;窗口标题「pi-penecho · 控制台」,多会话/配对/文件夹卡全渲染(截图 packaged-app2.png);已在跑服务自动复用不重起(dev 模式验证)
+  - 证据 ②:配对卡 QR 二维码渲染(http://192.168.5.16:9288/),门户 / 200 安装页 + /PenEcho-board.apk 45.5MB 可下载;模拟器 app ≡→配对电脑 经打包 app 门户发现「已找到电脑:http://10.0.2.2:9191」(发现路径 /setup.sh→/ 修复后复测)
+  - 证据 ③:打包 app 上 test:bridge 一轮板书通过(personas/工作区 CLAUDE.md 散装资源读取正常,会话记忆连续答出第 11 讲进度)
+  - 组件:desktop/main.mjs(ELECTRON_RUN_AS_NODE spawn 三服务+退避重拉+退出回收,日志落 ~/.pi-penecho/logs/);scripts/build-desktop.sh(桥 bundle+penecho pack+syncthing 二进制);electron-builder.yml(asar:false 散装,dmg 189MB 含 APK 物料);server.mjs 资源路径 env 化+/lan-info+/vendor/qrcode.js 路由;admin.html 配对卡 QR 引导(qrcode-generator vendored)
+  - 过程发现:electron-builder files 只带 dist/index.html+APK → 手机发现探测从 /setup.sh 改 /(setup.sh 是 Termux 遗物);activate 同名 Electron 进程会抢前台,验收按 bundle id(com.pi-penecho.desktop)
 
 ### Phase 6: 总装与陌生人验收
 - **FEAT**: FEAT-2.3.1

@@ -49,6 +49,9 @@ public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 - **syncthing 共享文件夹前设备必须先注册**:`POST /config/devices` 加对端,folder.devices 才能引用;只写 folder 不注册设备 = 永远连不上(connections 为空)。
 - **已配对设备重新 redeem 必须短路**(alreadyPaired 直接放行去同步设置):否则轮询把历史 peers 误判成本轮确认,reject 对老设备静默失效。
 - **模拟器 NAT 隔离 syncthing discovery**:两端互不可见,验收时手机端 Mac 设备地址手动改 `tcp://10.0.2.2:22000`;真机同 WiFi 用 dynamic 不受影响,不要为模拟器改产品代码。
+- **Electron 子进程跑 Node 脚本**:`spawn(process.execPath, [entry], {env:{ELECTRON_RUN_AS_NODE:"1"}})` = 内嵌 node,干净机器零依赖;桥/白板/syncthing 三服务同哲学退避重拉,已在跑的(launchd)复用不重起。
+- **electron-builder 的 files 是允许清单**:dist/ 只放行了 index.html+APK,手机端探测的 /setup.sh 没带 → 探测路径一律用 `/`(index.html 恒在);物料多就 `asar:false` 散装,路径直给不折腾 unpack。
+- **Mac 上多个 Electron app 互相抢 activate**:验收脚本按 bundle id 置前(`bundle identifier is "com.pi-penecho.desktop"`),按名字必抢错。
 
 - **0.0.0.0 不能进浏览器**:PenEcho 启动日志的 `http://0.0.0.0:3888` 是监听声明,系统代理会 502。访问永远用 `localhost:3888`。
 - **角色边界必须写死**:不约束时 agent 会把职责文件(CLAUDE.md)当板书素材抄给学生。persona 里的边界段不许删。

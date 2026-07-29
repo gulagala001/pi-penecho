@@ -10,7 +10,9 @@
     "start": "node src/server.mjs",
     "check": "node --check src/server.mjs && node --check src/bridge.mjs && node --check src/config.mjs && node --check src/prompt.mjs && node --check src/tools.mjs && node --check src/pair.mjs && node --check src/sessions.mjs",
     "smoke": "node scripts/probe.mjs",
-    "test:bridge": "node scripts/test-bridge.mjs"
+    "test:bridge": "node scripts/test-bridge.mjs",
+    "build:desktop": "bash scripts/build-desktop.sh",
+    "dist:desktop": "npm run build:desktop && electron-builder"
   },
   "keywords": [
     "penecho",
@@ -22,12 +24,16 @@
   "license": "MIT",
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.82.1",
-    "@earendil-works/pi-ai": "^0.82.1"
+    "@earendil-works/pi-ai": "^0.82.1",
+    "qrcode-generator": "^2.0.4"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.1"
-  }
+  },
+  "main": "desktop/main.mjs"
 }

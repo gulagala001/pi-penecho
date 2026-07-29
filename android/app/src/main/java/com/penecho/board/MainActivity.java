@@ -342,7 +342,7 @@ public class MainActivity extends Activity {
     String discoverPortalBlocking() {
         try {
             // 模拟器:宿主电脑固定 10.0.2.2
-            if (httpOk("http://10.0.2.2:" + PORTAL_PORT + "/setup.sh")) {
+            if (httpOk("http://10.0.2.2:" + PORTAL_PORT + "/")) {
                 return "http://10.0.2.2:" + PORTAL_PORT;
             }
             WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
@@ -360,7 +360,7 @@ public class MainActivity extends Activity {
                 pool.execute(() -> {
                     if (found.get()) return;
                     String base = "http://" + ip + ":" + PORTAL_PORT;
-                    if (httpOk(base + "/setup.sh") && found.compareAndSet(false, true)) hit[0] = base;
+                    if (httpOk(base + "/") && found.compareAndSet(false, true)) hit[0] = base;
                 });
             }
             pool.shutdown();

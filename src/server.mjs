@@ -23,7 +23,9 @@ import {
 } from "./sessions.mjs";
 
 const PORT = Number(process.env.PI_PENECHO_PORT || 9191);
-const ADMIN_HTML = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "admin.html");
+// 资源路径允许 env 覆盖(Electron 打包后目录结构不同,由 desktop/main.mjs 注入)
+const ADMIN_HTML = process.env.PI_PENECHO_ADMIN_HTML
+  || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "admin.html");
 
 // 日志统一带时间戳
 const _log = console.log, _err = console.error;
@@ -96,7 +98,18 @@ const server = http.createServer(async (req, res) => {
     try { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(fs.readFileSync(ADMIN_HTML, "utf8")); }
     catch { res.writeHead(404); return res.end("public/admin.html missing"); }
   }
+  if (req.method === "GET" && req.url === "/vendor/qrcode.js") {
+    try { res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
+      return res.end(fs.readFileSync(path.join(path.dirname(ADMIN_HTML), "vendor", "qrcode.js"), "utf8")); }
+    catch { res.writeHead(404); return res.end("qrcode vendor missing"); }
+  }
   if (req.method === "GET" && req.url === "/health") return json(res, 200, { ok: true, turns: getAgent().state.messages.length });
+  // 控制台首屏二维码用:LAN IP + 门户端口(手机扫码到安装页下载 APK)
+  if (req.method === "GET" && req.url === "/lan-info") {
+    const ips = Object.values(os.networkInterfaces()).flat()
+      .filter((x) => x && x.family === "IPv4" && !x.internal).map((x) => x.address);
+    return json(res, 200, { ok: true, ips, portalPort: INSTALL_PORT });
+  }
   if (req.method === "GET" && req.url === "/config") return json(res, 200, publicConfig());
 
   if (req.method === "POST" && req.url === "/config/fetch-models") {
@@ -308,7 +321,8 @@ server.listen(PORT, "0.0.0.0", () => {
 // 独立端口、只读 dist/ 下的安装物料(APK/bundle/setup.sh/index.html),无任何 API;
 // 平板与电脑同一 WiFi 时经此高速拉取全部文件,不依赖外网。dist/ 不存在(如平板端 bundle)则不启动。
 const INSTALL_PORT = Number(process.env.PI_PENECHO_INSTALL_PORT || 9288);
-const DIST_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
+const DIST_DIR = process.env.PI_PENECHO_DIST_DIR
+  || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".apk": "application/vnd.android.package-archive",

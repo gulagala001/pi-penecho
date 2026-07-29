@@ -20,3 +20,8 @@ android-spike/app/src/main/assets/libs/
 android-spike/.gradle/
 android-spike/app/build/
 android-spike/local.properties
+desktop/bridge-bundle.mjs
+desktop/penecho/
+desktop/bin/
+desktop/.pack/
+release/

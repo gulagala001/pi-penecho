@@ -1,0 +1,24 @@
+appId: com.pi-penecho.desktop
+productName: pi-penecho
+asar: false
+directories:
+  output: release
+files:
+  - desktop/main.mjs
+  - desktop/bridge-bundle.mjs
+  - desktop/penecho/**
+  - desktop/bin/**
+  - public/**
+  - personas/**
+  - dist/index.html
+  - dist/PenEcho-board.apk
+  - package.json
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+  identity: null
+win:
+  target:
+    - nsis
