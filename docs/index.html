@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PenEcho 平板安装</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #f2f4f7; color: #222;
+         max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; line-height: 1.7; }
+  h1 { font-size: 24px; margin: 12px 0 4px; }
+  .sub { color: #666; margin-bottom: 20px; }
+  .card { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 14px;
+          box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+  .step-num { display: inline-block; width: 28px; height: 28px; line-height: 28px; border-radius: 50%;
+              background: #2563eb; color: #fff; text-align: center; font-weight: 700; margin-right: 8px; }
+  .step-title { font-size: 18px; font-weight: 700; }
+  .hint { color: #666; font-size: 14px; margin: 8px 0 12px; }
+  .btn { display: block; width: 100%; padding: 15px; border-radius: 12px; border: none;
+         font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:active { background: #1d4ed8; }
+  .btn-ghost { background: #eef2ff; color: #2563eb; margin-top: 8px; }
+  .cmd { background: #1e293b; color: #a5f3fc; border-radius: 10px; padding: 14px; font-size: 13px;
+         word-break: break-all; font-family: Menlo, monospace; margin: 10px 0; user-select: all; }
+  .qr { text-align: center; margin: 12px 0 4px; }
+  .qr img { width: 150px; height: 150px; }
+  .qr-note { font-size: 12px; color: #999; text-align: center; }
+  .done { background: #ecfdf5; border: 1px solid #6ee7b7; }
+  details { margin-top: 20px; font-size: 14px; color: #555; }
+  summary { font-weight: 600; cursor: pointer; padding: 10px; background: #fff; border-radius: 10px; }
+  details div { padding: 8px 10px; }
+  code { background: #eee; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>📋 PenEcho 平板安装</h1>
+<p class="sub">4 个动作,平板变成考研白板。全程约 10 分钟。</p>
+
+<div class="card">
+  <span class="step-num">1</span><span class="step-title">装 Termux(发动机)</span>
+  <p class="hint">用平板扫码,或点按钮直接下载,然后安装。系统问「允许安装未知来源」时允许。</p>
+  <div class="qr" id="qr-termux"></div>
+  <p class="qr-note">平板相机扫码下载 Termux</p>
+  <a class="btn btn-ghost" href="https://github.com/gulagala001/pi-penecho/releases/latest/download/termux.apk">直接下载 Termux 安装包</a>
+</div>
+
+<div class="card">
+  <span class="step-num">2</span><span class="step-title">打开 Termux,粘贴命令,回车</span>
+  <p class="hint">打开刚装的 Termux(黑窗口),长按屏幕选「粘贴/Paste」,然后按回车。等它自己跑完(几分钟,看到「安装完成」)。</p>
+  <div class="cmd" id="cmd">curl -sL https://github.com/gulagala001/pi-penecho/releases/latest/download/setup.sh | bash</div>
+  <button class="btn btn-primary" onclick="copyCmd(this)">点我复制命令</button>
+</div>
+
+<div class="card">
+  <span class="step-num">3</span><span class="step-title">装白板 app</span>
+  <p class="hint">同样扫码或点按钮,下载后安装「PenEcho 白板」。先别打开。</p>
+  <div class="qr" id="qr-board"></div>
+  <p class="qr-note">平板相机扫码下载白板 app</p>
+  <a class="btn btn-ghost" href="https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk">直接下载白板 app</a>
+</div>
+
+<div class="card">
+  <span class="step-num">4</span><span class="step-title">告诉 Mac 上的助手:「装好了」</span>
+  <p class="hint">它会完成最后一步:把你的考研笔记、学习进度、API 设置自动同步到平板(平板和 Mac 要连同一个 WiFi)。同步完成后打开白板就能用。</p>
+</div>
+
+<div class="card done">
+  <span class="step-title">✅ 完成</span>
+  <p class="hint">打开「PenEcho 白板」,手写提问,AI 家教板书回答。右下角 ≡ 小球可以进控制台(换模型/人设)或回白板。</p>
+</div>
+
+<details>
+  <summary>遇到问题?进阶选项点这里</summary>
+  <div>
+    <p><b>平板重启后白板连不上</b>:打开一次 Termux 即可(服务会自动启动)。想全自动可再装
+      <a href="https://github.com/gulagala001/pi-penecho/releases/latest/download/termux-boot.apk">Termux:Boot</a>。</p>
+    <p><b>用着用着白板连不上</b>:系统把后台服务杀了。设置 → 应用 → Termux → 电池 → 选「无限制」。</p>
+    <p><b>Termux 里手动管理</b>:启动 <code>~/penecho-mobile/start.sh</code>;停止 <code>~/penecho-mobile/stop.sh</code>;
+      日志 <code>tail -f ~/penecho-mobile/logs/bridge.log</code></p>
+    <p><b>完整文档</b>:<a href="https://github.com/gulagala001/pi-penecho/blob/main/README.termux.md">README.termux.md</a></p>
+  </div>
+</details>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+  function makeQr(el, url) {
+    try {
+      var qr = qrcode(0, 'M');
+      qr.addData(url);
+      qr.make();
+      document.getElementById(el).innerHTML = qr.createImgTag(5, 8);
+    } catch (e) { /* 二维码加载失败不影响按钮下载 */ }
+  }
+  makeQr('qr-termux', 'https://github.com/gulagala001/pi-penecho/releases/latest/download/termux.apk');
+  makeQr('qr-board', 'https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk');
+
+  function copyCmd(btn) {
+    var text = document.getElementById('cmd').innerText;
+    function ok() { btn.textContent = '已复制 ✓ 去 Termux 粘贴'; setTimeout(function(){ btn.textContent = '点我复制命令'; }, 3000); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, function() { fallback(); });
+    } else fallback();
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { btn.textContent = '请长按命令手动复制'; }
+      document.body.removeChild(ta);
+    }
+  }
+</script>
+
+</body>
+</html>

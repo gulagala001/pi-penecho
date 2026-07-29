@@ -40,55 +40,28 @@ open(cfg, "w").write(src2)
 PY
 fi
 
-echo "==> [3/5] 注入共享文件夹配置($SYNC_DIR)"
-if ! grep -q 'id="kaoyan-new"' "$ST_CONFIG/config.xml"; then
-  # 在 </configuration> 前插入 folder 段;缺省字段由 syncthing 启动时规范化补齐
-  python3 - "$ST_CONFIG/config.xml" "$SYNC_DIR" <<'PY'
+echo "==> [3/5] 注入共享文件夹配置($SYNC_DIR + ~/.pi-penecho)"
+inject_folder() { # $1=id $2=label $3=path
+  grep -q "id=\"$1\"" "$ST_CONFIG/config.xml" && { echo "   $1 已存在,跳过"; return; }
+  python3 - "$ST_CONFIG/config.xml" "$1" "$2" "$3" <<'PY'
 import sys
-cfg, folder_path = sys.argv[1], sys.argv[2]
-block = f'''    <folder id="kaoyan-new" label="考研new" path="{folder_path}" type="sendreceive" rescanIntervalS="30" fsWatcherEnabled="true" fsWatcherDelayS="5" ignorePerms="true">
+cfg, fid, label, folder_path = sys.argv[1:5]
+block = f'''    <folder id="{fid}" label="{label}" path="{folder_path}" type="sendreceive" rescanIntervalS="30" fsWatcherEnabled="true" fsWatcherDelayS="5" ignorePerms="true">
         <filesystemType>basic</filesystemType>
         <minDiskFree unit="%">1</minDiskFree>
-        <versioning></versioning>
-        <copiers>0</copiers>
-        <pullerMaxPendingKiB>0</pullerMaxPendingKiB>
-        <hashers>0</hashers>
-        <order>random</order>
-        <ignoreDelete>false</ignoreDelete>
-        <scanProgressIntervalS>0</scanProgressIntervalS>
-        <pullerPauseS>0</pullerPauseS>
         <maxConflicts>-1</maxConflicts>
-        <disableSparseFiles>false</disableSparseFiles>
-        <disableTempIndexes>false</disableTempIndexes>
         <paused>false</paused>
-        <weakHashThresholdPct>25</weakHashThresholdPct>
         <markerName>.stfolder</markerName>
-        <copyOwnershipFromParent>false</copyOwnershipFromParent>
-        <modTimeWindowS>0</modTimeWindowS>
-        <maxConcurrentWrites>2</maxConcurrentWrites>
-        <disableFsync>false</disableFsync>
-        <blockPullOrder>standard</blockPullOrder>
-        <copyRangeMethod>standard</copyRangeMethod>
-        <caseSensitiveFS>false</caseSensitiveFS>
-        <junctionsAsDirs>false</junctionsAsDirs>
-        <syncOwnership>false</syncOwnership>
-        <sendOwnership>false</sendOwnership>
-        <syncXattrs>false</syncXattrs>
-        <sendXattrs>false</sendXattrs>
-        <xattrFilter>
-            <maxSingleEntrySize>1024</maxSingleEntrySize>
-            <maxTotalSize>4096</maxTotalSize>
-        </xattrFilter>
     </folder>
 </configuration>'''
 src = open(cfg).read()
 assert "</configuration>" in src, "config.xml 结构异常"
 open(cfg, "w").write(src.replace("</configuration>", block))
-print("文件夹配置已注入")
+print(f"   {fid} 已注入")
 PY
-else
-  echo "已存在,跳过"
-fi
+}
+inject_folder "kaoyan-new" "考研new" "$SYNC_DIR"
+inject_folder "pi-penecho-config" "pi-penecho 配置" "$HOME/.pi-penecho"
 
 echo "==> [4/5] launchd 开机自启"
 cat > "$PLIST" <<EOF
