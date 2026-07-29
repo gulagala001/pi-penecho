@@ -39,10 +39,12 @@ fi
 echo "==> [4/4] 启动服务"
 bash "$HOME/penecho-mobile/start.sh"
 
-# 记忆同步:预建工作区 + 大文件忽略规则(与 Mac 端规则一致,双保险)
-mkdir -p "$HOME/Projects/考研new"
-cat > "$HOME/Projects/考研new/.stignore" <<'STIGN'
-// 平板只带文字记忆(md/txt/json),大二进制留 Mac
+# 记忆同步:预建工作区 + 大文件忽略规则(与电脑端规则一致,双保险)
+# fork 本项目时把这里换成你的资料夹路径(并用 PENECHO_DIR_KAOYAN 告知 pair-accept)
+WORKSPACE_DIR="${PENECHO_DIR_KAOYAN:-$HOME/Projects/考研new}"
+mkdir -p "$WORKSPACE_DIR"
+cat > "$WORKSPACE_DIR/.stignore" <<'STIGN'
+// 平板只带文字档案(md/txt/json),大二进制留电脑端
 *.pdf
 *.zip
 *.jpg
@@ -60,24 +62,21 @@ cat > "$HOME/Projects/考研new/.stignore" <<'STIGN'
 *.rar
 STIGN
 
-# 启动配对守护(后台等 10 分钟;Mac 端在 8384 网页发起配对后自动接受)
+# 启动配对守护(后台等 10 分钟;电脑端控制台点「配对平板」后自动接受)
 nohup bash "$HOME/penecho-mobile/pair-accept.sh" > "$HOME/penecho-mobile/logs/pair.log" 2>&1 &
 
 cat <<'EOF'
 
 ╔══════════════════════════════════════════╗
-║  安装完成!接下来:                        ║
+║  平板端安装完成!                 ║
 ╠══════════════════════════════════════════╣
-║  【同步记忆】在 Mac 上(与平板同一 WiFi):  ║
-║  打开 http://127.0.0.1:8384             ║
-║  →「添加远程设备」→ 选你的平板           ║
-║  → 勾选共享「考研new」→ 保存             ║
-║  平板会自动接受(10 分钟内有效)           ║
-║  配对成功后约 5MB 的笔记/进度自动到位     ║
-╠══════════════════════════════════════════╣
-║  【白板 app】安装 PenEcho-board.apk      ║
-║  首次打开自动跳控制台 → 粘贴 Kimi key     ║
-║  → 保存 → ≡ 回到白板,开始写字           ║
+║  最后一步(电脑端):                        ║
+║  打开控制台 http://localhost:9191         ║
+║  →「平板配对」卡片 → 点【配对平板】        ║
+║  (两端需连同一 WiFi)                      ║
+║                                          ║
+║  随后你的档案与设置自动同步到本机,         ║
+║  打开「PenEcho 白板」app 即可使用          ║
 ╠══════════════════════════════════════════╣
 ║  提示:把 Termux 加入系统「后台白名单」     ║
 ║  (设置→应用→Termux→电池→无限制)         ║

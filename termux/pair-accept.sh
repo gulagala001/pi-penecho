@@ -14,10 +14,10 @@ APIKEY=$(sed -n 's/.*<apikey>\(.*\)<\/apikey>.*/\1/p' "$ST_HOME/config.xml")
 get() { curl -s -m 4 -H "X-API-Key: $APIKEY" "$API$1" 2>/dev/null; }
 post() { curl -s -m 6 -H "X-API-Key: $APIKEY" -H "Content-Type: application/json" -X POST -d "$2" "$API$1" 2>/dev/null; }
 
-# 文件夹 id → 本端落点
+# 文件夹 id → 本端落点(env 可覆盖;fork 本项目时把 kaoyan-new 换成你自己的资料夹 id 与路径)
 folder_path() {
   case "$1" in
-    kaoyan-new) echo "$HOME/Projects/考研new" ;;
+    kaoyan-new) echo "${PENECHO_DIR_KAOYAN:-$HOME/Projects/考研new}" ;;
     pi-penecho-config) echo "$HOME/.pi-penecho" ;;
     *) echo "" ;;
   esac

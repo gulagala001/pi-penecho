@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PenEcho 平板安装</title>
+<title>pi-penecho · 平板安装</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", sans-serif; background: #f2f4f7; color: #222;
@@ -12,9 +12,12 @@
   .sub { color: #666; margin-bottom: 20px; }
   .card { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 14px;
           box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+  .card.pc { border: 2px solid #2563eb; }
   .step-num { display: inline-block; width: 28px; height: 28px; line-height: 28px; border-radius: 50%;
               background: #2563eb; color: #fff; text-align: center; font-weight: 700; margin-right: 8px; }
   .step-title { font-size: 18px; font-weight: 700; }
+  .side { display: inline-block; font-size: 12px; background: #eef2ff; color: #2563eb;
+          border-radius: 6px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
   .hint { color: #666; font-size: 14px; margin: 8px 0 12px; }
   .btn { display: block; width: 100%; padding: 15px; border-radius: 12px; border: none;
          font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
@@ -35,50 +38,58 @@
 </head>
 <body>
 
-<h1>📋 PenEcho 平板安装</h1>
-<p class="sub">4 个动作,平板变成考研白板。全程约 10 分钟。</p>
+<h1>📋 pi-penecho 平板安装</h1>
+<p class="sub">一个能在白板上和你互动、有记忆的智能体:平板手写提问,它板书回应;电脑和平板上的记忆与档案自动保持一致。</p>
 
-<div class="card">
-  <span class="step-num">1</span><span class="step-title">装 Termux(发动机)</span>
-  <p class="hint">用平板扫码,或点按钮直接下载,然后安装。系统问「允许安装未知来源」时允许。</p>
-  <div class="qr" id="qr-termux"></div>
-  <p class="qr-note">平板相机扫码下载 Termux</p>
-  <a class="btn btn-ghost" href="https://github.com/gulagala001/pi-penecho/releases/latest/download/termux.apk">直接下载 Termux 安装包</a>
+<div class="card pc">
+  <span class="step-title">💻 电脑端</span><span class="side">已就绪,无需操作</span>
+  <p class="hint">桥、白板服务、同步端都在你的 Mac 上运行中。控制台:<code>http://localhost:9191</code>(第 4 步会用到)。</p>
 </div>
 
 <div class="card">
-  <span class="step-num">2</span><span class="step-title">打开 Termux,粘贴命令,回车</span>
-  <p class="hint">打开刚装的 Termux(黑窗口),长按屏幕选「粘贴/Paste」,然后按回车。等它自己跑完(几分钟,看到「安装完成」)。</p>
+  <span class="step-title">📱 平板端</span><span class="side">三步,约 10 分钟</span>
+</div>
+
+<div class="card">
+  <span class="step-num">1</span><span class="step-title">装「发动机」</span>
+  <p class="hint">智能体在白板后面工作的发动机。平板扫码下载安装,装完不用打开。系统问「允许安装未知来源」时允许。</p>
+  <div class="qr" id="qr-termux"></div>
+  <p class="qr-note">平板相机扫码下载</p>
+  <a class="btn btn-ghost" href="https://github.com/gulagala001/pi-penecho/releases/latest/download/termux.apk">直接下载「发动机」</a>
+</div>
+
+<div class="card">
+  <span class="step-num">2</span><span class="step-title">初始化(粘贴一行)</span>
+  <p class="hint">打开刚装的 Termux(黑窗口,只此一次),长按屏幕选「粘贴」,回车。等它自己跑完,看到「平板端安装完成」。</p>
   <div class="cmd" id="cmd">curl -sL https://github.com/gulagala001/pi-penecho/releases/latest/download/setup.sh | bash</div>
   <button class="btn btn-primary" onclick="copyCmd(this)">点我复制命令</button>
 </div>
 
 <div class="card">
-  <span class="step-num">3</span><span class="step-title">装白板 app</span>
-  <p class="hint">同样扫码或点按钮,下载后安装「PenEcho 白板」。先别打开。</p>
+  <span class="step-num">3</span><span class="step-title">装「白板」app</span>
+  <p class="hint">扫码下载安装「PenEcho 白板」。装好后先别打开。</p>
   <div class="qr" id="qr-board"></div>
-  <p class="qr-note">平板相机扫码下载白板 app</p>
-  <a class="btn btn-ghost" href="https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk">直接下载白板 app</a>
+  <p class="qr-note">平板相机扫码下载</p>
+  <a class="btn btn-ghost" href="https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk">直接下载「白板」app</a>
 </div>
 
-<div class="card">
-  <span class="step-num">4</span><span class="step-title">告诉 Mac 上的助手:「装好了」</span>
-  <p class="hint">它会完成最后一步:把你的考研笔记、学习进度、API 设置自动同步到平板(平板和 Mac 要连同一个 WiFi)。同步完成后打开白板就能用。</p>
+<div class="card pc">
+  <span class="step-num">4</span><span class="step-title">回电脑端:点「配对平板」</span>
+  <p class="hint">平板和电脑连<b>同一个 WiFi</b>。在 Mac 上打开控制台 <code>http://localhost:9191</code>,找到「平板配对」卡片,点 <b>配对平板</b> ——你的档案、笔记和设置(API key、人设)随即自动同步到平板。</p>
 </div>
 
 <div class="card done">
   <span class="step-title">✅ 完成</span>
-  <p class="hint">打开「PenEcho 白板」,手写提问,AI 家教板书回答。右下角 ≡ 小球可以进控制台(换模型/人设)或回白板。</p>
+  <p class="hint">在平板上打开「PenEcho 白板」,手写提问,智能体板书回答。右下角 ≡ 小球:控制台(换模型/人设)/ 回白板 / 刷新。</p>
 </div>
 
 <details>
-  <summary>遇到问题?进阶选项点这里</summary>
+  <summary>遇到问题?点这里</summary>
   <div>
-    <p><b>平板重启后白板连不上</b>:打开一次 Termux 即可(服务会自动启动)。想全自动可再装
-      <a href="https://github.com/gulagala001/pi-penecho/releases/latest/download/termux-boot.apk">Termux:Boot</a>。</p>
-    <p><b>用着用着白板连不上</b>:系统把后台服务杀了。设置 → 应用 → Termux → 电池 → 选「无限制」。</p>
-    <p><b>Termux 里手动管理</b>:启动 <code>~/penecho-mobile/start.sh</code>;停止 <code>~/penecho-mobile/stop.sh</code>;
-      日志 <code>tail -f ~/penecho-mobile/logs/bridge.log</code></p>
+    <p><b>平板重启后白板连不上</b>:打开一次「发动机」(Termux)即可,服务自动恢复。想全自动可再装
+      <a href="https://github.com/gulagala001/pi-penecho/releases/latest/download/termux-boot.apk">开机自启插件</a>。</p>
+    <p><b>用着用着连不上</b>:系统杀了后台。设置 → 应用 → Termux → 电池 → 选「无限制」。</p>
+    <p><b>配对没反应</b>:确认两端同一 WiFi;或在 Mac 上改跑 <code>bash scripts/pair-tablet.sh</code>,效果相同。</p>
     <p><b>完整文档</b>:<a href="https://github.com/gulagala001/pi-penecho/blob/main/README.termux.md">README.termux.md</a></p>
   </div>
 </details>

@@ -11,6 +11,7 @@ import {
   turnLog, canvasSystemRef, fetchedModelsRef,
 } from "./bridge.mjs";
 import { listPersonas } from "./prompt.mjs";
+import { pairStatus, pairTablet } from "./pair.mjs";
 
 const PORT = Number(process.env.PI_PENECHO_PORT || 9191);
 const ADMIN_HTML = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "admin.html");
@@ -149,6 +150,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/session/reset") { await resetSession(); return json(res, 200, { ok: true }); }
   if (req.method === "POST" && req.url === "/session/undo") { return json(res, 200, { ok: true, removed: await undoTurn() }); }
   if (req.method === "GET" && req.url === "/session/turns") return json(res, 200, turnLog.slice(-50).reverse());
+
+  // ---- 平板配对(Syncthing) ----
+  if (req.method === "GET" && req.url === "/pair/status") {
+    try { return json(res, 200, await pairStatus()); }
+    catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "POST" && req.url === "/pair/tablet") {
+    try { return json(res, 200, await pairTablet()); }
+    catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
 
   if (req.method !== "POST" || req.url !== "/v1/messages") { res.writeHead(404); return res.end("not found"); }
 

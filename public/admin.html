@@ -123,6 +123,16 @@
   <div id="turns"></div>
 </div>
 
+<div class="card">
+  <h2>平板配对</h2>
+  <div class="row" style="margin-bottom:12px">
+    <button onclick="doPair()">配对平板</button>
+    <button class="ghost" onclick="loadPairStatus()">刷新状态</button>
+    <span class="muted">平板跑完一键安装后,点「配对平板」;笔记/档案与配置(API key、人设)随后自动双端同步</span>
+  </div>
+  <div id="pair-status" class="muted">读取中…</div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -270,7 +280,30 @@ async function undoTurn() {
   r.ok ? (toast(r.removed ? "已撤销上一轮" : "没有可撤销的轮次"), refresh()) : toast("失败", true);
 }
 
+// ---------- 平板配对 ----------
+async function loadPairStatus() {
+  const el = $("pair-status");
+  try {
+    const r = await j("/pair/status");
+    if (!r.ok) { el.textContent = r.error || "Syncthing 不可用"; return; }
+    const peers = r.peers.length ? r.peers.map((p) => `${p.name}(${p.id})`).join("、") : "无";
+    const folders = r.folders.length ? r.folders.map((f) => `${f.id}(共享给 ${f.sharedWith} 台)`).join("、") : "无";
+    el.innerHTML = `已配对设备:${escapeHtml(peers)}<br>共享文件夹:${escapeHtml(folders)}<br><span class="muted">平板端安装入口:https://gulagala001.github.io/pi-penecho/</span>`;
+  } catch (e) { el.textContent = "读取失败: " + e.message; }
+}
+async function doPair() {
+  const el = $("pair-status");
+  el.textContent = "正在扫描局域网设备(约 20 秒,请勿重复点击)…";
+  const r = await j("/pair/tablet", { method: "POST" });
+  if (!r.ok) { el.textContent = r.error || "配对失败"; toast("配对未完成", true); return; }
+  toast("配对已发起 ✓");
+  el.innerHTML = `已发起配对,设备 ${escapeHtml(r.device)}<br>共享文件夹:${escapeHtml((r.shared || []).join("、") || "无")}`
+    + (r.missing && r.missing.length ? `<br><span class="muted">以下文件夹未配置,请先运行 scripts/install-syncthing-mac.sh:${escapeHtml(r.missing.join("、"))}</span>` : "")
+    + `<br><span class="muted">${escapeHtml(r.note || "")}</span>`;
+}
+
 refresh();
+loadPairStatus();
 setInterval(refresh, 5000);
 </script>
 </body>
