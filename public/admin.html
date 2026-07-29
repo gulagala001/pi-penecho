@@ -353,9 +353,10 @@ async function genCode() {
 
 async function loadPairStatus() {
   try {
-    const r = await j("/pair/status");
+    const [r, prog] = await Promise.all([j("/pair/status"), j("/sync/progress")]);
     if (!r.ok) { $("pair-peers").textContent = r.error || "Syncthing 不可用"; return; }
     pairState = r;
+    pairState.progress = prog;
     renderPending();
     renderPeers();
     renderFolders();
@@ -411,18 +412,35 @@ async function rejectPair(deviceId) {
   loadPairStatus();
 }
 
+function fmtMB(b) { return b >= 1048576 ? (b / 1048576).toFixed(0) + "MB" : Math.ceil(b / 1024) + "KB"; }
 function renderFolders() {
   const box = $("sync-folders");
   const folders = pairState.folders || [];
   if (!folders.length) { box.innerHTML = '<span class="muted">注册表为空</span>'; return; }
-  box.innerHTML = folders.map((f) => `
+  const prog = (pairState.progress || {}).folders || [];
+  box.innerHTML = folders.map((f) => {
+    const p = prog.find((x) => x.id === f.id);
+    let bar = "";
+    if (f.enabled && pairState.progress && pairState.progress.ok) {
+      if (!pairState.progress.peers) bar = `<span class="muted">未配对设备</span>`;
+      else if (!pairState.progress.onlinePeers) bar = `<span class="muted">设备离线</span>`;
+      else if (p && p.completion != null) {
+        const pct = Math.floor(p.completion);
+        bar = pct >= 100
+          ? `<span style="color:#3fb950">✓ 已同步</span>`
+          : `<span style="display:inline-block;width:120px;height:8px;background:#30363d;border-radius:4px;overflow:hidden;vertical-align:middle"><span style="display:block;height:100%;width:${pct}%;background:#1f6feb"></span></span> <span class="muted">${pct}%${p.needBytes ? " · 剩 " + fmtMB(p.needBytes) : ""}</span>`;
+      }
+    }
+    return `
     <div class="row" style="margin:6px 0">
       <label style="min-width:220px"><input type="checkbox" data-sf-enabled="${escapeHtml(f.id)}" ${f.enabled ? "checked" : ""}> <b>${escapeHtml(f.label || f.id)}</b></label>
       <select data-sf-dir="${escapeHtml(f.id)}">
         ${Object.entries(DIRS).map(([v, t]) => `<option value="${v}" ${v === f.direction ? "selected" : ""}>${t}</option>`).join("")}
       </select>
       <span class="muted">${escapeHtml(f.macPath)} ${f.registered ? "" : "(未注册)"}</span>
-    </div>`).join("");
+      ${bar}
+    </div>`;
+  }).join("");
 }
 
 async function saveFolders() {

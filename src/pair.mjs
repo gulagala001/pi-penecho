@@ -5,7 +5,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const ST_HOME = path.join(os.homedir(), ".config", "syncthing");
+// syncthing home 平台自适应:手机端(APK 内嵌)用 $HOME/sync,电脑端用 ~/.config/syncthing
+const ST_HOME = fs.existsSync(path.join(os.homedir(), "sync", "config.xml"))
+  ? path.join(os.homedir(), "sync")
+  : path.join(os.homedir(), ".config", "syncthing");
 const API = "http://127.0.0.1:8384/rest";
 const CONFIG_DIR = path.join(os.homedir(), ".pi-penecho");
 const SYNC_FOLDERS_FILE = path.join(CONFIG_DIR, "sync-folders.json");
@@ -215,6 +218,35 @@ export async function pairMap(deviceId) {
     })),
     deviceId: deviceId || null,
   };
+}
+
+/** 同步进度:每个启用文件夹对在线对端的最小完成度(谁慢看谁);无对端/全离线时标记 */
+export async function syncProgress() {
+  const status = await st("GET", "/system/status");
+  const myId = status.myID;
+  const devices = (await st("GET", "/config/devices")).filter((d) => d.deviceID !== myId && !d.paused);
+  const conns = await st("GET", "/system/connections").catch(() => ({ connections: {} }));
+  const onlineIds = new Set(
+    Object.entries(conns.connections || {}).filter(([, v]) => v && v.connected).map(([k]) => k));
+  const online = devices.filter((d) => onlineIds.has(d.deviceID));
+  const { folders } = loadSyncFolders();
+  const out = [];
+  for (const f of folders.filter((x) => x.enabled)) {
+    let completion = null, needBytes = 0;
+    if (online.length) {
+      const cs = await Promise.all(online.map(async (d) => {
+        try { return await st("GET", `/db/completion?folder=${encodeURIComponent(f.id)}&device=${encodeURIComponent(d.deviceID)}`); }
+        catch { return null; }
+      }));
+      const valid = cs.filter((c) => c && typeof c.completion === "number");
+      if (valid.length) {
+        completion = Math.min(...valid.map((c) => c.completion));
+        needBytes = Math.max(...valid.map((c) => c.needBytes || 0));
+      }
+    }
+    out.push({ id: f.id, completion, needBytes });
+  }
+  return { ok: true, peers: devices.length, onlinePeers: online.length, folders: out };
 }
 
 // ---------- 兼容:自动发现快速路径(保留给命令行/高级用户) ----------

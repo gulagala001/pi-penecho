@@ -15,7 +15,7 @@ import {
 import { listPersonas } from "./prompt.mjs";
 import {
   pairStatus, pairTablet, createPairCode, redeemPairCode, confirmPair, rejectPair, pairMap,
-  loadSyncFolders, saveSyncFolders, ensureSyncFolders,
+  loadSyncFolders, saveSyncFolders, ensureSyncFolders, syncProgress,
 } from "./pair.mjs";
 import {
   initSessions, appendDelta, listSessions, createSession, switchSession,
@@ -251,6 +251,11 @@ const server = http.createServer(async (req, res) => {
       const q = new URL(req.url, "http://x").searchParams;
       return json(res, 200, await pairMap(q.get("deviceId")));
     } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  // 同步进度(各文件夹对对端的完成度,进度条用)
+  if (req.method === "GET" && req.url === "/sync/progress") {
+    try { return json(res, 200, await syncProgress()); }
+    catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
   }
   // 同步文件夹注册表:保存(方向/启用修改)并落地到 syncthing
   if (req.method === "POST" && req.url === "/sync/folders") {

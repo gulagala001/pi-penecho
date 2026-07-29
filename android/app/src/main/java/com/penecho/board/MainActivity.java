@@ -274,7 +274,9 @@ public class MainActivity extends Activity {
             @Override public void onDone(String detail) {
                 ui.post(() -> {
                     Toast.makeText(MainActivity.this, detail, Toast.LENGTH_LONG).show();
-                    showStep(detail + "\n\n文件夹将自动开始同步。", "回到白板", v -> hidePairView());
+                    showStep(detail + "\n\n文件夹正在后台同步。\n≡ → 控制台 → 同步文件夹,可看进度条。",
+                            "去看同步进度", v -> { hidePairView(); web.loadUrl(ADMIN_URL); },
+                            "回到白板", v -> hidePairView());
                 });
             }
             @Override public void onError(String reason) {
