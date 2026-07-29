@@ -1,7 +1,7 @@
 // 桥核心:常驻 pi agent 单例、模型解析、白板轮次处理、会话管理
 import crypto from "node:crypto";
 import { Agent } from "@earendil-works/pi-agent-core";
-import { createModels } from "@earendil-works/pi-ai";
+import { createModels, Type } from "@earendil-works/pi-ai";
 import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding";
 import { createWorkspaceTools } from "./tools.mjs";
 import { buildSystemPrompt, getPersona } from "./prompt.mjs";
@@ -9,6 +9,26 @@ import { activeProfile } from "./config.mjs";
 
 export const models = createModels();
 models.setProvider(kimiCodingProvider());
+
+// 结构化输出通道:模型通过 submit_board 工具提交契约 JSON(官方端点实测稳);
+// 不支持的中转/弱模型会退化回文本 JSON,由 extractJson 兜底(双保险)
+let capturedBoard = null;
+const SUBMIT_BOARD_TOOL = {
+  name: "submit_board",
+  label: "提交板书回应",
+  description: "提交你对白板的结构化回应。优先用此工具提交(参数即画布契约 JSON);只有工具调用不可用时才在正文输出纯 JSON。",
+  parameters: Type.Object({
+    intent: Type.Union(["none", "hint", "continue", "explain", "plot", "correct", "erase", "answer", "typeset"].map((x) => Type.Literal(x))),
+    observedText: Type.Optional(Type.String({ description: "对学生最新笔迹的转写" })),
+    message: Type.Optional(Type.String()),
+    commands: Type.Array(Type.Object({}, { additionalProperties: true })),
+  }),
+  constrainedSampling: { type: "json_schema", strict: "prefer" },
+  execute: async (id, params) => {
+    capturedBoard = params;
+    return { content: [{ type: "text", text: "已提交" }] };
+  },
+};
 
 let agent = null;
 let runtime = { cfg: null, persona: null };
@@ -61,12 +81,18 @@ export function initAgent(cfg) {
     initialState: {
       systemPrompt: "(pending)",
       model,
-      tools: createWorkspaceTools(runtime.persona?.workspace),
+      tools: [...createWorkspaceTools(runtime.persona?.workspace), SUBMIT_BOARD_TOOL],
       thinkingLevel: cfg.thinkingLevel,
     },
     streamFn: models.streamSimple.bind(models),
     getApiKey: () => activeProfile(runtime.cfg).apiKey || process.env.KIMI_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || "",
     transformContext: pruneOldImages,
+    afterToolCall: (context) => {
+      // 输出工具调用后立即停轮(板书已捕获,无需继续生成)
+      const name = context.toolCall?.name || "";
+      if (name === "submit_board") return { terminate: true };
+      return undefined;
+    },
   });
   agent.subscribe((event) => {
     if (event.type === "tool_execution_start") {
@@ -86,7 +112,7 @@ export function applyRuntime(cfg, fetchedModels) {
   agent.state.thinkingLevel = cfg.thinkingLevel;
   if (personaChanged) {
     runtime.persona = getPersona(cfg.persona);
-    agent.state.tools = createWorkspaceTools(runtime.persona?.workspace);
+    agent.state.tools = [...createWorkspaceTools(runtime.persona?.workspace), SUBMIT_BOARD_TOOL];
     console.log(`[config] persona 切换为 ${runtime.persona?.id}(工具 ${agent.state.tools.length} 个)`);
   }
 }
@@ -163,7 +189,9 @@ export async function runTutorTurn(text, images, res) {
   if (myGen !== gen || res.writableEnded) return;
 
   runToolCalls = new Set();
-  agent.state.systemPrompt = buildSystemPrompt(runtime.persona, canvasSystemRef.value, { boardFontSize: runtime.cfg.boardFontSize });
+  capturedBoard = null;
+  agent.state.systemPrompt = buildSystemPrompt(runtime.persona, canvasSystemRef.value, { boardFontSize: runtime.cfg.boardFontSize }) +
+    "\n\n输出方式:优先调用 submit_board 工具提交你的回应(参数即契约 JSON);仅当工具调用不可用时,才在正文中只输出契约 JSON 文本。";
 
   await agent.prompt(text, images);
   // 看门狗:正常轮(含工具链)应在几分钟内;480s 未完成视为卡死,abort 并 504
@@ -182,15 +210,17 @@ export async function runTutorTurn(text, images, res) {
   }
   if (myGen !== gen || res.writableEnded) return;
 
-  let parsed = extractJson(lastAssistantText());
+  let parsed = (capturedBoard && capturedBoard.intent) ? capturedBoard : extractJson(lastAssistantText());
   if (!parsed) {
     console.log("[tutor] 输出非 JSON,要求重试。原文前300:", JSON.stringify(lastAssistantText().slice(0, 300)));
     await agent.prompt("你的上一条输出不是有效 JSON。严格按画布输出契约,只输出 JSON 本身,前后不要任何其他文字。", []);
     await agent.waitForIdle();
     if (myGen !== gen || res.writableEnded) return;
-    parsed = extractJson(lastAssistantText());
+    parsed = (capturedBoard && capturedBoard.intent) ? capturedBoard : extractJson(lastAssistantText());
   }
   if (!parsed) parsed = { intent: "none", commands: [] };
+  if (!parsed.intent) parsed.intent = "none";
+  if (!Array.isArray(parsed.commands)) parsed.commands = [];
 
   // 公式落档兜底:本轮板书含 LaTeX 公式但没写文件 → 让它补写(补写轮输出丢弃)
   if (runtime.persona?.workspace) {

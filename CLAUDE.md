@@ -31,7 +31,9 @@ personas/*.md    内置角色(frontmatter: name/description/workspace;正文支�
 public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 ```
 
-**请求流**:`POST /v1/messages` → 无图透传上游 / 带图进 `runTutorTurn` → 系统提示 = persona 装配 + 画布契约(PenEcho 请求 system 字段捕获,canvasSystemRef 缓存)→ agent.prompt(text, images) → 抠 JSON(失败重试一次)→ 包装 anthropic 响应。并发:单 agent 串行,`gen` 代际 + `agent.abort()` 实现 PenEcho supersede 语义;改这段小心 waitForIdle 死锁。
+**请求流**:`POST /v1/messages` → 无图透传上游 / 带图进 `runTutorTurn` → 系统提示 = persona 装配 + 画布契约(PenEcho 请求 system 字段捕获,canvasSystemRef 缓存)→ agent.prompt(text, images) → 回应提取(**优先 submit_board 工具参数**,文本抠 JSON 兜底,失败重试一次)→ 包装 anthropic 响应。并发:单 agent 串行,`gen` 代际 + `agent.abort()` 实现 PenEcho supersede 语义;改这段小心 waitForIdle 死锁。
+
+**结构化输出(双通道)**:agent 注册了 `submit_board` 工具(intent/observedText/message/commands schema,constrainedSampling prefer),调用后 afterToolCall `terminate:true` 立即停轮。官方 Kimi 端点实测稳定;**中转站可能空调用({})**——所以提取时校验 `capturedBoard.intent` 非空才采信,否则退回文本抠 JSON。两条通道都不能删。
 
 **配置流**:控制台 POST /config|/profiles → saveConfig + applyRuntime(不重建 agent,保会话);文件外部改动 → 每轮请求前 hotReload(mtime)。
 
