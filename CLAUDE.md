@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> 最后更新: 2026-07-30 · 状态: 当权
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 这是什么

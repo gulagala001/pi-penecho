@@ -1,5 +1,7 @@
 # AI_README.md
 
+> 最后更新: 2026-07-30 · 状态: 当权
+
 > **每个 AI 进项目读的第一个文件。** 架构 + 目录规范唯一真相源。
 > 阅读顺序:本文件 → CLAUDE.md(血泪教训) → INTENT.md(L1) → alignment.md(L2) → blueprint.md(L3) → plan.md(L5)
 
