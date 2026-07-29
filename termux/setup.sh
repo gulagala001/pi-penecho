@@ -10,9 +10,9 @@ echo "┌───────────────────────�
 echo "│   PenEcho 移动套件 · 一键安装       │"
 echo "└─────────────────────────────────────┘"
 
-echo "==> [1/4] 安装基础包(nodejs-lts 可能需要几分钟)"
+echo "==> [1/4] 安装基础包(nodejs-lts + syncthing,可能需要几分钟)"
 pkg update -y
-pkg install -y nodejs-lts curl tar
+pkg install -y nodejs-lts syncthing curl tar
 
 echo "==> [2/4] 下载 PenEcho 移动套件"
 PKG_TMP="$PREFIX/tmp"
@@ -39,28 +39,53 @@ fi
 echo "==> [4/4] 启动服务"
 bash "$HOME/penecho-mobile/start.sh"
 
+# 记忆同步:预建工作区 + 大文件忽略规则(与 Mac 端规则一致,双保险)
+mkdir -p "$HOME/Projects/考研new"
+cat > "$HOME/Projects/考研new/.stignore" <<'STIGN'
+// 平板只带文字记忆(md/txt/json),大二进制留 Mac
+*.pdf
+*.zip
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.mp4
+*.mov
+*.ppt
+*.pptx
+*.doc
+*.docx
+*.epub
+*.7z
+*.rar
+STIGN
+
+# 启动配对守护(后台等 10 分钟;Mac 端在 8384 网页发起配对后自动接受)
+nohup bash "$HOME/penecho-mobile/pair-accept.sh" > "$HOME/penecho-mobile/logs/pair.log" 2>&1 &
+
 cat <<'EOF'
 
 ╔══════════════════════════════════════════╗
-║  安装完成!接下来三步:              ║
+║  安装完成!接下来:                        ║
 ╠══════════════════════════════════════════╣
-║  1. 安装「白板」app(APK 找发你包的人要)   ║
-║  2. 打开白板 app → 右上角「控制台」       ║
-║     → 粘贴你的 Kimi API key → 保存        ║
-║  3. 回到白板,开始写字                   ║
+║  【同步记忆】在 Mac 上(与平板同一 WiFi):  ║
+║  打开 http://127.0.0.1:8384             ║
+║  →「添加远程设备」→ 选你的平板           ║
+║  → 勾选共享「考研new」→ 保存             ║
+║  平板会自动接受(10 分钟内有效)           ║
+║  配对成功后约 5MB 的笔记/进度自动到位     ║
 ╠══════════════════════════════════════════╣
-║  可选:装 Termux:Boot 可实现开机自启服务   ║
-║  (要和 Termux 同一来源:都用 GitHub 版)    ║
-║  没装 Boot 也没关系:重启平板后打开一次      ║
-║  Termux,服务会自动启动(已写入 .bashrc)     ║
+║  【白板 app】安装 PenEcho-board.apk      ║
+║  首次打开自动跳控制台 → 粘贴 Kimi key     ║
+║  → 保存 → ≡ 回到白板,开始写字           ║
 ╠══════════════════════════════════════════╣
 ║  提示:把 Termux 加入系统「后台白名单」     ║
-║  (设置→应用→Termux→电池→无限制),         ║
-║  否则系统可能杀掉后台服务                 ║
+║  (设置→应用→Termux→电池→无限制)         ║
 ╚══════════════════════════════════════════╝
 
 日常管理(在 Termux 里):
   启动  ~/penecho-mobile/start.sh
   停止  ~/penecho-mobile/stop.sh
   日志  tail -f ~/penecho-mobile/logs/bridge.log
+  重跑配对  bash ~/penecho-mobile/pair-accept.sh
 EOF

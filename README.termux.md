@@ -9,6 +9,7 @@
 - 安卓平板(Android 8 以上),能上网
 - 约 10 分钟
 - 你的 **Kimi API key**(在 Mac 上打开 http://localhost:9191 ,「配置」页可复制;key 形如 sk-...)
+- **Mac 端记忆同步已就绪**(本机已装 Syncthing 并共享「考研new」文件夹;若重装系统,运行 `scripts/install-syncthing-mac.sh` 一键恢复)
 
 ## 第一步:装 Termux(后台发动机)
 
@@ -31,7 +32,21 @@ curl -sL https://github.com/gulagala001/pi-penecho/releases/latest/download/setu
 
 等待跑完(装 Node 可能要几分钟),看到「安装完成」字样。
 
-## 第三步:装白板 app
+## 第三步:同步记忆(配对一次,终身自动)
+
+家教的「记忆」(你的进度看板、笔记、备课档案,约 5MB)通过 Syncthing 在 Mac 和平板间**双向自动同步**——Mac 上学的进度到平板,平板上学完的进度也能回 Mac。
+
+1. 平板和 Mac 连**同一个 WiFi**
+2. Mac 上打开 http://127.0.0.1:8384 (Syncthing 控制台)
+3. 点右下角「添加远程设备」→ 列表里会自动出现你的平板 → 选中
+4. 「共享」页签里勾选 **考研new** → 保存
+5. 平板会在 10 分钟内**自动接受**配对(Termux 里 `tail -f ~/penecho-mobile/logs/pair.log` 可看进度)
+6. 几分钟后,`~/Projects/考研new` 里就是你的全部笔记和进度
+
+> 大文件(PDF/图片/视频,约 1.1GB)按规则留在 Mac 上,平板只带文字档案——家教讲课靠的就是这些。
+> 若错过 10 分钟窗口:Termux 里跑 `bash ~/penecho-mobile/pair-accept.sh` 重新等待。
+
+## 第四步:装白板 app
 
 1. 平板浏览器下载:
    https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk

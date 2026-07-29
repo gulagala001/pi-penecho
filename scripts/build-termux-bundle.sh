@@ -51,6 +51,12 @@ if health; then echo "[penecho] 服务已在运行"; exit 0; fi
 
 termux-wake-lock 2>/dev/null
 
+# Syncthing(记忆同步,幂等;配对未完成时仅进程常驻,无副作用)
+if command -v syncthing >/dev/null 2>&1 && ! pgrep -f "syncthing serve" >/dev/null 2>&1; then
+  [ -f "$HOME/.config/syncthing/config.xml" ] || syncthing generate --home="$HOME/.config/syncthing" >/dev/null 2>&1
+  nohup syncthing serve --no-browser --home="$HOME/.config/syncthing" >> logs/syncthing.log 2>&1 &
+fi
+
 # 桥
 export PI_PENECHO_PORT="$BRIDGE_PORT"
 # PenEcho(env 注入配置,不碰 ~/.penecho/config.env;HOST 锁回环,白板不对局域网暴露)
@@ -83,8 +89,9 @@ cat > "$STAGE/stop.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 pkill -f "penecho-mobile/bridge/server.mjs" 2>/dev/null
 pkill -f "penecho-mobile/penecho/server.js" 2>/dev/null
+pkill -f "syncthing serve" 2>/dev/null
 termux-wake-unlock 2>/dev/null
-echo "[penecho] 已停止"
+echo "[penecho] 已停止(白板 + 桥 + 同步)"
 EOF
 
 # Termux:Boot 开机自启入口(由 setup.sh 拷到 ~/.termux/boot/)
@@ -93,6 +100,9 @@ cat > "$STAGE/boot.sh" <<'EOF'
 sleep 5
 "$HOME/penecho-mobile/start.sh"
 EOF
+
+# 平板端配对守护(Mac 发起配对后自动接受)
+cp termux/pair-accept.sh "$STAGE/pair-accept.sh"
 
 chmod +x "$STAGE"/*.sh
 
