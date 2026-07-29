@@ -3,34 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>pi-penecho · 平板安装</title>
+<title>pi-penecho · 手机/平板安装</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", sans-serif; background: #f2f4f7; color: #222;
-         max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; line-height: 1.7; }
+         max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; line-height: 1.8; }
   h1 { font-size: 24px; margin: 12px 0 4px; }
   .sub { color: #666; margin-bottom: 16px; }
-  .lane { border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-bottom: 16px; display: none; }
-  .lane.lan { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; }
-  .lane.gh { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
   .card { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 14px;
           box-shadow: 0 1px 4px rgba(0,0,0,.07); }
-  .card.pc { border: 2px solid #2563eb; }
   .step-num { display: inline-block; width: 28px; height: 28px; line-height: 28px; border-radius: 50%;
               background: #2563eb; color: #fff; text-align: center; font-weight: 700; margin-right: 8px; }
-  .step-title { font-size: 18px; font-weight: 700; }
-  .side { display: inline-block; font-size: 12px; background: #eef2ff; color: #2563eb;
-          border-radius: 6px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
-  .hint { color: #666; font-size: 14px; margin: 8px 0 12px; }
-  .btn { display: block; width: 100%; padding: 15px; border-radius: 12px; border: none;
-         font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
+  .hint { color: #444; font-size: 15px; margin-top: 8px; }
+  .btn { display: inline-block; padding: 12px 18px; border-radius: 10px; text-decoration: none;
+         font-size: 16px; font-weight: 600; margin-top: 10px; }
   .btn-primary { background: #2563eb; color: #fff; }
-  .btn-primary:active { background: #1d4ed8; }
-  .cmd { background: #1e293b; color: #a5f3fc; border-radius: 10px; padding: 14px; font-size: 13px;
-         word-break: break-all; font-family: Menlo, monospace; margin: 10px 0; user-select: all; }
-  .qr { text-align: center; margin: 12px 0 4px; }
-  .qr img { width: 150px; height: 150px; }
-  .qr-note { font-size: 12px; color: #999; text-align: center; }
   .done { background: #ecfdf5; border: 1px solid #6ee7b7; }
   details { margin-top: 20px; font-size: 14px; color: #555; }
   summary { font-weight: 600; cursor: pointer; padding: 10px; background: #fff; border-radius: 10px; }
@@ -40,72 +27,52 @@
 </head>
 <body>
 
-<h1>📋 pi-penecho 平板安装</h1>
-<p class="sub">一个能在白板上和你互动、有记忆的智能体。电脑 ↔ 平板两端,WiFi 直连,全程不依赖外网。</p>
+<h1>📋 pi-penecho 手机/平板安装</h1>
+<p class="sub">一个能在白板上和你互动、有记忆的智能体。白板、发动机、同步全部内置在一个 app 里。</p>
 
-<div class="lane lan" id="lane-lan">✅ 当前是<b>电脑直连快速通道</b>——文件从电脑高速下载,不经外网。</div>
-<div class="lane gh" id="lane-gh">ℹ️ 当前是 GitHub 在线通道。若平板与电脑连同一 WiFi,更推荐:平板浏览器打开本页的电脑版 <code>http://&lt;电脑IP&gt;:9288</code>(电脑端启动日志里有显示),下载更快更稳。</div>
-
-<div class="card pc">
-  <span class="step-num">1</span><span class="step-title">电脑上:下载一个文件,发到平板</span><span class="side">电脑端操作</span>
-  <p class="hint">在<b>电脑</b>上点下面按钮下载(33MB,发动机已藏在里面),用微信「文件传输助手」/ QQ / 数据线发到平板。</p>
-  <a class="btn btn-primary" id="dl-board" href="#">下载白板 app(内含发动机)</a>
-  <div class="qr" id="qr-self"></div>
-  <p class="qr-note" id="qr-note"></p>
+<div class="card">
+  <span class="step-num">1</span><b>下载并安装 app</b>
+  <p class="hint">点下面按钮下载(43MB,智能体发动机已内置),下载完点开安装。
+  系统提示「未知来源」时点<b>允许</b>——这只是安卓对非商店安装的常规提醒。</p>
+  <a class="btn btn-primary" id="dl-board" href="/PenEcho-board.apk">下载 PenEcho 白板 app</a>
 </div>
 
 <div class="card">
-  <span class="step-num">2</span><span class="step-title">平板上:安装后打开,跟着屏幕走</span><span class="side">平板端操作</span>
-  <p class="hint">在平板上点开收到的 APK 安装(允许「未知来源」),然后打开「PenEcho 白板」。它会自己:<br>
-  ① 引导你装发动机(系统弹窗,点「允许/安装」)<br>
-  ② 在你家 WiFi 里找到电脑<br>
-  ③ <b>自动把初始化命令复制好</b><br>
-  你只需在打开的 Termux 黑窗口里 <b>长按 → 粘贴 → 回车</b>,等它跑完。</p>
+  <span class="step-num">2</span><b>打开 app,等它就绪</b>
+  <p class="hint">首次打开会显示「正在启动智能体…」,约半分钟进入白板(它在解压自己的发动机,只有第一次慢)。
+  以后每次打开几秒就好。</p>
 </div>
 
-<div class="card pc">
-  <span class="step-num">3</span><span class="step-title">电脑上:配对 + 模型</span><span class="side">电脑端操作</span>
-  <p class="hint">平板和电脑连<b>同一个 WiFi</b>。电脑打开控制台 <code>http://localhost:9191</code>:<br>
-  ①「平板配对」卡片 → 点 <b>配对平板</b>(同步文件夹自动建好:你的档案记忆 + 配置)<br>
-  ②「端点 Profile」里确认模型和 key → 保存(几秒内同步到平板)。</p>
+<div class="card">
+  <span class="step-num">3</span><b>和电脑配对</b>
+  <p class="hint">手机/平板与电脑连<b>同一个 WiFi</b>:<br>
+  ① 电脑控制台(localhost:9191)「平板配对」卡 → 点 <b>生成配对码</b><br>
+  ② app 右下角 <b>≡</b> → <b>配对电脑</b>(会自动找到电脑)→ 输入 6 位码<br>
+  ③ 电脑上点<b>确认配对</b>,勾选要同步的文件夹和方向<br>
+  智能体的记忆、讲义、配置随即开始同步。</p>
 </div>
 
 <div class="card done">
-  <span class="step-title">✅ 完成</span>
-  <p class="hint">平板打开「PenEcho 白板」,手写提问,智能体板书回答。右下角 ≡ 小球:控制台 / 回白板 / 刷新。</p>
+  <b>✅ 完成</b>
+  <p class="hint">在白板上手写提问,智能体板书回答,而且记得你学过什么。
+  右下角 ≡:配对电脑 / 控制台 / 回白板 / 刷新。</p>
 </div>
 
 <details>
   <summary>遇到问题?点这里</summary>
   <div>
-    <p><b>app 找不到电脑</b>:确认电脑控制台 <code>http://localhost:9191</code> 能打开、两端同一 WiFi,然后点 app 里的「重试寻找」。</p>
-    <p><b>平板重启后白板连不上</b>:打开一次 Termux 即可(服务自动恢复)。想全自动可再装
-      <a id="dl-boot" href="#">开机自启插件</a>。</p>
-    <p><b>用着用着连不上</b>:系统杀了后台。设置 → 应用 → Termux → 电池 → 选「无限制」。</p>
-    <p><b>配对没反应</b>:确认两端同一 WiFi;或在电脑上改跑 <code>bash scripts/pair-tablet.sh</code>。</p>
-    <p><b>完整文档</b>:<a href="https://github.com/gulagala001/pi-penecho/blob/main/README.termux.md">README.termux.md</a></p>
+    <p><b>app 里「配对电脑」找不到电脑</b>:确认电脑端程序在运行(控制台 localhost:9191 能打开)、两端同一 WiFi;也可以点「手动输入 IP」填电脑的局域网 IP(控制台二维码下方有显示)。</p>
+    <p><b>配对码报错</b>:码 10 分钟内有效且只能用一次,错码/过期就回电脑重新生成。</p>
+    <p><b>文件夹不同步</b>:电脑控制台「同步文件夹」卡确认文件夹已勾选启用;两端同一 WiFi 时同步自动进行,稍等几十秒。</p>
+    <p><b>app 被杀后台后白板打不开</b>:重新打开 app 即可,发动机会自动恢复。</p>
   </div>
 </details>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
-  var GH = location.hostname.endsWith('github.io');
-  var RELEASE = 'https://github.com/gulagala001/pi-penecho/releases/latest/download/';
-  function fileUrl(f) { return GH ? RELEASE + f : location.origin + '/' + f; }
-
-  document.getElementById(GH ? 'lane-gh' : 'lane-lan').style.display = 'block';
-  document.getElementById('dl-board').href = fileUrl('PenEcho-board.apk');
-  document.getElementById('dl-boot').href = fileUrl('termux-boot.apk');
-
-  // 直连通道:二维码 = 本页地址,平板扫码即达(替代微信传文件的另一条路)
-  if (!GH) {
-    try {
-      var qr = qrcode(0, 'M');
-      qr.addData(location.href);
-      qr.make();
-      document.getElementById('qr-self').innerHTML = qr.createImgTag(5, 8);
-      document.getElementById('qr-note').textContent = '也可以平板相机直接扫这个码打开本页,省去微信传文件';
-    } catch (e) {}
+  // GitHub Pages 在线通道时,下载链接换 Release 资产
+  if (location.hostname.endsWith('github.io')) {
+    document.getElementById('dl-board').href =
+      'https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk';
   }
 </script>
 
