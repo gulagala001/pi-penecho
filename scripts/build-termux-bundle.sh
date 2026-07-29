@@ -110,6 +110,12 @@ echo "==> 打包"
 mkdir -p dist
 tar czf "$TARBALL" -C "$OUT/stage" penecho-mobile
 
+echo "==> 同步局域网安装门户物料(dist/)"
+cp docs/index.html dist/index.html
+cp termux/setup.sh dist/setup.sh
+[ -f dist/termux.apk ] || echo "   提示:dist/termux.apk 缺失,门户将无法提供发动机下载"
+[ -f dist/PenEcho-board.apk ] || echo "   提示:dist/PenEcho-board.apk 缺失(android/ 构建后拷入)"
+
 echo ""
 echo "完成: $TARBALL ($(du -h "$TARBALL" | cut -f1))"
 echo "内容:"; tar tzf "$TARBALL" | head -20; echo "  ..."

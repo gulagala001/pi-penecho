@@ -1,6 +1,7 @@
 // pi-penecho — PenEcho ↔ pi agent 桥接服务(HTTP 路由层)
 import http from "node:http";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -215,3 +216,36 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`pi-penecho  http://127.0.0.1:${PORT}`);
   console.log(`profile=${cfg.activeProfile}  model=${p.model}  thinking=${cfg.thinkingLevel}  persona=${cfg.persona}  keepImages=${cfg.keepImages}`);
 });
+
+// ---------- 局域网安装门户 ----------
+// 独立端口、只读 dist/ 下的安装物料(APK/bundle/setup.sh/index.html),无任何 API;
+// 平板与电脑同一 WiFi 时经此高速拉取全部文件,不依赖外网。dist/ 不存在(如平板端 bundle)则不启动。
+const INSTALL_PORT = Number(process.env.PI_PENECHO_INSTALL_PORT || 9288);
+const DIST_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".apk": "application/vnd.android.package-archive",
+  ".gz": "application/gzip",
+  ".sh": "text/plain; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
+};
+if (fs.existsSync(DIST_DIR)) {
+  const portal = http.createServer((req, res) => {
+    try {
+      let p = decodeURIComponent((req.url || "/").split("?")[0]);
+      if (p === "/" || p === "") p = "/index.html";
+      const file = path.normalize(path.join(DIST_DIR, p));
+      if (!file.startsWith(DIST_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+        res.writeHead(404); return res.end("not found");
+      }
+      res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
+      fs.createReadStream(file).pipe(res);
+    } catch { res.writeHead(500); res.end(); }
+  });
+  portal.on("error", (e) => console.log(`[portal] 安装门户启动失败(端口 ${INSTALL_PORT}): ${e.message}`));
+  portal.listen(INSTALL_PORT, "0.0.0.0", () => {
+    const ips = Object.values(os.networkInterfaces()).flat()
+      .filter((x) => x && x.family === "IPv4" && !x.internal).map((x) => x.address);
+    console.log(`安装门户(平板与电脑同一 WiFi 时访问): ${ips.map((ip) => `http://${ip}:${INSTALL_PORT}`).join("  ") || "(无局域网 IP)"}`);
+  });
+}
