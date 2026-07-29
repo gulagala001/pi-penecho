@@ -26,7 +26,6 @@
          font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
   .btn-primary { background: #2563eb; color: #fff; }
   .btn-primary:active { background: #1d4ed8; }
-  .btn-ghost { background: #eef2ff; color: #2563eb; margin-top: 8px; }
   .cmd { background: #1e293b; color: #a5f3fc; border-radius: 10px; padding: 14px; font-size: 13px;
          word-break: break-all; font-family: Menlo, monospace; margin: 10px 0; user-select: all; }
   .qr { text-align: center; margin: 12px 0 4px; }
@@ -37,7 +36,6 @@
   summary { font-weight: 600; cursor: pointer; padding: 10px; background: #fff; border-radius: 10px; }
   details div { padding: 8px 10px; }
   code { background: #eee; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
-  b.file { color: #1d4ed8; }
 </style>
 </head>
 <body>
@@ -45,23 +43,24 @@
 <h1>📋 pi-penecho 平板安装</h1>
 <p class="sub">一个能在白板上和你互动、有记忆的智能体。电脑 ↔ 平板两端,WiFi 直连,全程不依赖外网。</p>
 
-<div class="lane lan" id="lane-lan">✅ 当前是<b>电脑直连快速通道</b>——所有文件从电脑高速下载,不经外网。</div>
-<div class="lane gh" id="lane-gh">ℹ️ 当前是 GitHub 在线通道。若平板与电脑连同一 WiFi,更推荐:平板浏览器直接打开本页的电脑版 <code>http://&lt;电脑IP&gt;:9288</code>(电脑端控制台启动日志里有显示),下载更快更稳。</div>
+<div class="lane lan" id="lane-lan">✅ 当前是<b>电脑直连快速通道</b>——文件从电脑高速下载,不经外网。</div>
+<div class="lane gh" id="lane-gh">ℹ️ 当前是 GitHub 在线通道。若平板与电脑连同一 WiFi,更推荐:平板浏览器打开本页的电脑版 <code>http://&lt;电脑IP&gt;:9288</code>(电脑端启动日志里有显示),下载更快更稳。</div>
 
 <div class="card pc">
-  <span class="step-num">1</span><span class="step-title">电脑上:下载两个文件,发到平板</span><span class="side">电脑端操作</span>
-  <p class="hint">在<b>电脑</b>上点下面两个按钮下载,然后用微信「文件传输助手」/ QQ / 数据线发到平板。</p>
-  <a class="btn btn-primary" id="dl-termux" href="#">下载 ① 发动机(termux.apk)</a>
-  <a class="btn btn-ghost" id="dl-board" href="#">下载 ② 白板(PenEcho-board.apk)</a>
+  <span class="step-num">1</span><span class="step-title">电脑上:下载一个文件,发到平板</span><span class="side">电脑端操作</span>
+  <p class="hint">在<b>电脑</b>上点下面按钮下载(33MB,发动机已藏在里面),用微信「文件传输助手」/ QQ / 数据线发到平板。</p>
+  <a class="btn btn-primary" id="dl-board" href="#">下载白板 app(内含发动机)</a>
+  <div class="qr" id="qr-self"></div>
+  <p class="qr-note" id="qr-note"></p>
 </div>
 
 <div class="card">
-  <span class="step-num">2</span><span class="step-title">平板上:安装,再粘一行初始化</span><span class="side">平板端操作</span>
-  <p class="hint">在平板上点开收到的两个 APK 依次安装(允许「未知来源」)。然后打开刚装的 <b>Termux</b>(黑窗口,只此一次),粘贴下面命令,回车,等它跑完看到「平板端安装完成」。</p>
-  <div class="cmd" id="cmd">生成中…</div>
-  <button class="btn btn-primary" onclick="copyCmd(this)">点我复制命令</button>
-  <div class="qr" id="qr-self"></div>
-  <p class="qr-note" id="qr-note"></p>
+  <span class="step-num">2</span><span class="step-title">平板上:安装后打开,跟着屏幕走</span><span class="side">平板端操作</span>
+  <p class="hint">在平板上点开收到的 APK 安装(允许「未知来源」),然后打开「PenEcho 白板」。它会自己:<br>
+  ① 引导你装发动机(系统弹窗,点「允许/安装」)<br>
+  ② 在你家 WiFi 里找到电脑<br>
+  ③ <b>自动把初始化命令复制好</b><br>
+  你只需在打开的 Termux 黑窗口里 <b>长按 → 粘贴 → 回车</b>,等它跑完。</p>
 </div>
 
 <div class="card pc">
@@ -79,6 +78,7 @@
 <details>
   <summary>遇到问题?点这里</summary>
   <div>
+    <p><b>app 找不到电脑</b>:确认电脑控制台 <code>http://localhost:9191</code> 能打开、两端同一 WiFi,然后点 app 里的「重试寻找」。</p>
     <p><b>平板重启后白板连不上</b>:打开一次 Termux 即可(服务自动恢复)。想全自动可再装
       <a id="dl-boot" href="#">开机自启插件</a>。</p>
     <p><b>用着用着连不上</b>:系统杀了后台。设置 → 应用 → Termux → 电池 → 选「无限制」。</p>
@@ -91,19 +91,11 @@
 <script>
   var GH = location.hostname.endsWith('github.io');
   var RELEASE = 'https://github.com/gulagala001/pi-penecho/releases/latest/download/';
-  // 文件地址:在线通道 → GitHub release;直连通道 → 当前主机(电脑)相对路径
   function fileUrl(f) { return GH ? RELEASE + f : location.origin + '/' + f; }
 
   document.getElementById(GH ? 'lane-gh' : 'lane-lan').style.display = 'block';
-  document.getElementById('dl-termux').href = fileUrl('termux.apk');
   document.getElementById('dl-board').href = fileUrl('PenEcho-board.apk');
   document.getElementById('dl-boot').href = fileUrl('termux-boot.apk');
-
-  // 初始化命令:直连通道从电脑拉取离线包(免外网);在线通道从 GitHub
-  var cmd = GH
-    ? 'curl -sL ' + RELEASE + 'setup.sh | bash'
-    : 'curl -sL ' + location.origin + '/setup.sh | bash -s ' + location.origin + '/pi-penecho-termux-arm64.tar.gz';
-  document.getElementById('cmd').textContent = cmd;
 
   // 直连通道:二维码 = 本页地址,平板扫码即达(替代微信传文件的另一条路)
   if (!GH) {
@@ -114,20 +106,6 @@
       document.getElementById('qr-self').innerHTML = qr.createImgTag(5, 8);
       document.getElementById('qr-note').textContent = '也可以平板相机直接扫这个码打开本页,省去微信传文件';
     } catch (e) {}
-  }
-
-  function copyCmd(btn) {
-    var text = document.getElementById('cmd').innerText;
-    function ok() { btn.textContent = '已复制 ✓ 去 Termux 粘贴'; setTimeout(function(){ btn.textContent = '点我复制命令'; }, 3000); }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(ok, fallback);
-    } else fallback();
-    function fallback() {
-      var ta = document.createElement('textarea');
-      ta.value = text; document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); ok(); } catch (e) { btn.textContent = '请长按命令手动复制'; }
-      document.body.removeChild(ta);
-    }
   }
 </script>
 

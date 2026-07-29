@@ -12,16 +12,11 @@ pi-penecho 让你在平板上拥有一个**有记忆的白板智能体**:手写�
 | **电脑端**(Mac) | 桥 + PenEcho 白板服务 + Syncthing 同步端 | 已常驻运行;控制台 http://localhost:9191 |
 | **平板端** | Termux(发动机:跑与电脑端相同的服务)+「PenEcho 白板」app(全屏窗口) | 三步装好 |
 
-## 平板端三步
+## 平板端两步
 
-**① 装发动机(Termux)** — [直链下载](https://github.com/gulagala001/pi-penecho/releases/latest/download/termux.apk)(镜像自 termux/termux-app v0.118.3,GPL 开源),装完不用打开。
+**① 电脑下载一个文件,发到平板** — [白板 app(内含发动机,33MB)](https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk);微信/QQ/数据线传到平板并安装。
 
-**② 初始化** — 打开 Termux 粘贴一行,回车,等「平板端安装完成」:
-```bash
-curl -sL https://github.com/gulagala001/pi-penecho/releases/latest/download/setup.sh | bash
-```
-
-**③ 装白板 app** — [直链下载](https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk)。
+**② 平板打开 app,跟着屏幕走** — 它自动:引导装发动机(系统弹窗点允许)→ 在 WiFi 里找到电脑 → 把初始化命令复制好;你只需在 Termux 里长按粘贴回车。
 
 ## 配对(电脑端,一次)
 

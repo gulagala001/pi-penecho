@@ -8,3 +8,4 @@ dist/
 android/.gradle/
 android/app/build/
 android/local.properties
+android/app/src/main/assets/termux.apk
