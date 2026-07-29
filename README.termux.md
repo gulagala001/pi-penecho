@@ -1,89 +1,53 @@
 # 安卓平板安装指南
 
-把 PenEcho 白板 + AI 家教完整装进安卓平板,**不需要电脑**。装好后:点「PenEcho 白板」图标 → 全屏白板,手写提问,AI 板书回答。
+> **极简版入口(推荐)**: 在 Mac 或平板浏览器打开
+> **https://gulagala001.github.io/pi-penecho/**
+> 按页面上的 4 张卡片操作即可(含下载二维码和一键复制)。
+> 本文档是完整版说明 + 故障排查存档。
 
-> 原理一句话:Termux(安卓上的 Linux 环境)在后台跑服务,「白板」app 负责显示。你只需要接触白板 app。
+装好后:点「PenEcho 白板」图标 → 全屏白板,手写提问,AI 板书回答。你的考研笔记、进度、API 设置通过 Syncthing 在 Mac 与平板间自动同步。
 
-## 准备
+## 流程总览
 
-- 安卓平板(Android 8 以上),能上网
-- 约 10 分钟
-- 你的 **Kimi API key**(在 Mac 上打开 http://localhost:9191 ,「配置」页可复制;key 形如 sk-...)
-- **Mac 端记忆同步已就绪**(本机已装 Syncthing 并共享「考研new」文件夹;若重装系统,运行 `scripts/install-syncthing-mac.sh` 一键恢复)
+| 步骤 | 动作 | 说明 |
+|---|---|---|
+| 1 | 装 Termux | [直链下载](https://github.com/gulagala001/pi-penecho/releases/latest/download/termux.apk)(镜像自 termux/termux-app v0.118.3,GPL 开源) |
+| 2 | Termux 里粘贴一行命令 | `curl -sL https://github.com/gulagala001/pi-penecho/releases/latest/download/setup.sh \| bash` |
+| 3 | 装白板 app | [直链下载](https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk) |
+| 4 | 配对同步 | Mac 上跑 `bash scripts/pair-tablet.sh`(或让 Claude 代劳):自动发现平板并完成配对 |
 
-## 第一步:装 Termux(后台发动机)
+配对后自动同步两个文件夹:
+- `考研new` → 平板 `~/Projects/考研new`(md 记忆档案约 5MB;PDF/图片/视频按 .stignore 规则留 Mac)
+- `pi-penecho 配置` → 平板 `~/.pi-penecho`(config.json,含 API key / persona / 模型设置——**平板免填 key**)
 
-1. 平板浏览器打开 https://github.com/termux/termux-app/releases
-2. 找最新版本,下载文件名含 **`arm64-v8a`** 且以 `github-android` 结尾的 APK
-   (例如 `termux-app_v0.118.3+github-android_arm64-v8a.apk`)
-3. 安装。系统问「允许安装未知来源应用」时允许
-4. 【可选但推荐】同样方式装 **Termux:Boot**:https://github.com/termux/termux-boot/releases
-   —— 装它后平板重启会自动起服务;不装的话,重启后需要打开一次 Termux(服务会自动启动)
-
-> ⚠️ 不要用应用商店/Play Store 里的 Termux,那是废弃的旧版。
-
-## 第二步:一键安装服务
-
-打开 Termux,**粘贴下面这行**,回车:
-
-```bash
-curl -sL https://github.com/gulagala001/pi-penecho/releases/latest/download/setup.sh | bash
-```
-
-等待跑完(装 Node 可能要几分钟),看到「安装完成」字样。
-
-## 第三步:同步记忆(配对一次,终身自动)
-
-家教的「记忆」(你的进度看板、笔记、备课档案,约 5MB)通过 Syncthing 在 Mac 和平板间**双向自动同步**——Mac 上学的进度到平板,平板上学完的进度也能回 Mac。
-
-1. 平板和 Mac 连**同一个 WiFi**
-2. Mac 上打开 http://127.0.0.1:8384 (Syncthing 控制台)
-3. 点右下角「添加远程设备」→ 列表里会自动出现你的平板 → 选中
-4. 「共享」页签里勾选 **考研new** → 保存
-5. 平板会在 10 分钟内**自动接受**配对(Termux 里 `tail -f ~/penecho-mobile/logs/pair.log` 可看进度)
-6. 几分钟后,`~/Projects/考研new` 里就是你的全部笔记和进度
-
-> 大文件(PDF/图片/视频,约 1.1GB)按规则留在 Mac 上,平板只带文字档案——家教讲课靠的就是这些。
-> 若错过 10 分钟窗口:Termux 里跑 `bash ~/penecho-mobile/pair-accept.sh` 重新等待。
-
-## 第四步:装白板 app
-
-1. 平板浏览器下载:
-   https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk
-2. 安装并打开「PenEcho 白板」
-3. 第一次打开会**自动跳到控制台页** → 粘贴 Kimi API key → 点「保存」
-4. 点右下角半透明小圆球 **≡** →「回到白板」,开始写字
+> 配置改动请固定在一端进行(推荐 Mac 控制台 http://localhost:9191),改动几秒内同步到另一端并热加载生效;两端同时改同一配置可能产生冲突副本。
 
 ## 日常使用
 
-- 点「PenEcho 白板」图标即用。服务在后台自己跑,**不用打开 Termux**
-- 右下角小球 **≡** 三个功能:控制台(换模型/人设/字号)、回白板、刷新
-- 平板重启后:装了 Termux:Boot 就全自动;没装就打开一次 Termux(几秒后服务自动起,然后可以关掉)
+- 点「PenEcho 白板」图标即用;服务在 Termux 后台自动运行
+- 右下角 ≡ 小球:控制台 / 回白板 / 刷新
+- 平板重启后:打开一次 Termux,服务自动恢复(已在 .bashrc 挂幂等启动);或装 [Termux:Boot](https://github.com/gulagala001/pi-penecho/releases/latest/download/termux-boot.apk) 实现开机自启
 
-## 必做:防止系统杀后台
+## 防杀后台(建议设一次)
 
-国产系统(小米/红米、华为/荣耀、OPPO、vivo…)会清理后台进程,导致白板连不上。**每个品牌都设一下**:
+设置 → 应用 → 应用管理 → **Termux** → 电池/耗电管理 → **「无限制」**;最近任务界面给 Termux 卡片**加锁**。
+没设置也不影响使用,只是服务可能几小时后被系统停掉——重开 Termux 即恢复。
 
-1. 设置 → 应用 → 应用管理 → **Termux** → 电池/耗电管理 → 选 **「无限制」**(或「允许后台活动」)
-2. 打开最近任务(多任务)界面 → 找到 Termux 卡片 → 下拉或点锁形图标 → **加锁**
+## 故障排查
 
-不同品牌菜单名字略有差异,搜「你的品牌 + 应用后台白名单」即可。
+**白板一直「正在连接白板服务」**
+Termux 里跑 `~/penecho-mobile/start.sh` 看报错;日志 `tail -50 ~/penecho-mobile/logs/bridge.log`。
 
-## 常见问题
+**配对没反应**
+确认两端同一 WiFi;平板重跑 `bash ~/penecho-mobile/pair-accept.sh`;Mac 重跑 `bash scripts/pair-tablet.sh`。
+Syncthing 控制台:Mac http://127.0.0.1:8384 。
 
-**白板一直显示「正在连接白板服务」**
-打开 Termux,输入 `~/penecho-mobile/start.sh` 回车,看报什么错。多半是服务没起或被杀了(检查上一条白名单设置)。
-
-**写字后 AI 不回应 / 报错**
-右下角 ≡ → 控制台,确认 API key 有效;或在 Termux 里看日志:
-`tail -50 ~/penecho-mobile/logs/bridge.log`
-
-**想换 AI 模型 / 角色人设 / 板书字号**
-≡ → 控制台,和 Mac 上的控制台完全一样。
+**AI 不回应**
+控制台(≡ 小球)检查 key;`bridge.log` 看报错。
 
 **更新到新版本**
-重新跑第二步那行命令。你的配置(API key、人设选择)会保留。
+重新跑步骤 2 的命令(配置与笔记保留)。白板 app 更新:下载新 APK 覆盖安装。
 
 ## 卸载
 
-Termux 里:`~/penecho-mobile/stop.sh`,然后卸载 Termux 和白板 app。
+Termux 里 `~/penecho-mobile/stop.sh`,然后卸载 Termux 和白板 app;Mac 端 Syncthing 移除平板设备即可。
