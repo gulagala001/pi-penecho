@@ -25,6 +25,21 @@ PenEcho ships with single-turn executors: every request is independent, the AI o
 - **Multi-endpoint profiles** — any Anthropic-compatible endpoint (Kimi, relays, etc.), saved as switchable profiles. Model list pulled from the endpoint's `/v1/models`.
 - **Console UI** — `http://localhost:9191`: status, endpoint/model config, persona picker, session controls (new conversation / undo turn), recent turns.
 
+## One-line setup (macOS)
+
+```bash
+git clone https://github.com/gulagala001/pi-penecho.git
+cd pi-penecho
+bash scripts/install-mac.sh
+```
+
+The installer is idempotent and does everything: Node.js (if missing) → dependencies → PenEcho → config files → Syncthing sync endpoint → launchd autostart (bridge, whiteboard, sync all survive reboots). When it finishes:
+
+- **Console**: http://localhost:9191 — paste your API key, pick a persona, done.
+- **Android tablet**: https://gulagala001.github.io/pi-penecho/ — single-APK guided install (engine bundled inside); all files can be served from your Mac over WiFi, no external network needed. Pair from the console's **「平板配对」** card.
+
+Manual setup / non-macOS: read on.
+
 ## Quick start
 
 Requirements: Node.js 20+, [PenEcho](https://github.com/penecho/penecho) (`npm i -g penecho`), an API key for an Anthropic-compatible endpoint.

@@ -23,6 +23,21 @@ PenEcho 自带的执行器是单轮的:每次请求独立,AI 只看得到当前�
 - **多端点 profiles**:任意 Anthropic 兼容端点(Kimi 官方、中转站等),存成可切换的 profile;模型列表从端点 `/v1/models` 直接拉。
 - **控制台 UI**:`http://localhost:9191`——状态、端点/模型配置、persona 选择、会话管理(新建对话/撤销上轮)、最近轮次。
 
+## 一键安装(macOS)
+
+```bash
+git clone https://github.com/gulagala001/pi-penecho.git
+cd pi-penecho
+bash scripts/install-mac.sh
+```
+
+安装器幂等,全自动:Node.js(缺失时)→ 依赖 → PenEcho → 配置文件 → Syncthing 同步端 → launchd 常驻(桥、白板、同步,重启自愈)。装完:
+
+- **控制台**:http://localhost:9191 —— 填 API key、选 persona,即可使用。
+- **安卓平板**:https://gulagala001.github.io/pi-penecho/ —— 单 APK 引导安装(发动机内置);文件可从电脑 WiFi 直传,无需外网。在控制台「平板配对」卡片一键配对。
+
+手动安装 / 非 macOS 见下文。
+
 ## 快速开始
 
 需要:Node.js 20+、[PenEcho](https://github.com/penecho/penecho)(`npm i -g penecho`)、一个 Anthropic 兼容端点的 API key。
