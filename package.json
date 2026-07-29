@@ -1,6 +1,6 @@
 {
   "name": "pi-penecho",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "PenEcho whiteboard ↔ persistent pi agent bridge: multi-persona, multi-endpoint, session memory",
   "type": "module",
   "bin": {
