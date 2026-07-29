@@ -7,7 +7,7 @@
 
 ## 项目概述
 
-**pi-penecho**:有记忆的白板智能体系统。PenEcho 手写白板 ↔ 常驻 pi agent(会话记忆+persona+工作区文件工具)↔ Anthropic 兼容端点(Kimi)。形态:**电脑端**(Mac,Electron 目标)+ **手机端**(安卓单 APK 目标),局域网 Syncthing 双端同步记忆与配置。当前生产形态:bash 桥(9191)+全局 penecho(3888)+安卓 Termux 套件;正向 L1 终极形态演进。
+**pi-penecho**:有记忆的白板智能体系统。PenEcho 手写白板 ↔ 常驻 pi agent(会话记忆+persona+工作区文件工具)↔ Anthropic 兼容端点(Kimi)。形态:**电脑端**(Mac,Electron 双击 app)+ **手机端**(安卓单 APK,白板/发动机/同步全内置),局域网 Syncthing 双端同步记忆与配置,6 位码配对。生产形态即 L1 终极形态(v1.0.0 已发布);launchd 常驻(scripts/legacy/)为开发者便利保留。
 
 ## 总体架构
 
@@ -24,26 +24,28 @@
 
 | 路径 | 用途 | 例子 |
 |------|------|------|
-| `src/` | 桥核心源码(ESM) | server.mjs(路由) bridge.mjs(agent 核心) config.mjs prompt.mjs tools.mjs pair.mjs sessions.mjs(规划) |
+| `src/` | 桥核心源码(ESM) | server.mjs(路由) bridge.mjs(agent 核心) config.mjs prompt.mjs tools.mjs pair.mjs sessions.mjs(多会话) |
 | `personas/` | 内置角色(frontmatter:name/description/workspace) | kaoyan-tutor.md general.md |
-| `public/` | 控制台前端(原生 JS) | admin.html |
-| `scripts/` | 可执行脚本(bash/node) | build-termux-bundle.sh build-apk.sh install-*.sh pair-tablet.sh emu/(规划:模拟器) |
-| `android/` | 白板 app(Gradle 项目) | app/src/main/java/... MainActivity.java |
-| `termux/` | 手机端 Termux 时代物料(过渡形态) | setup.sh pair-accept.sh |
-| `docs/` | GitHub Pages 源 | index.html |
-| `dist/` | 构建产物(gitignore) | *.tar.gz *.apk index.html setup.sh |
-| `desktop/` | (规划)Electron 电脑端 | main.mjs |
+| `public/` | 控制台前端(原生 JS) | admin.html vendor/(qrcode.js 等内嵌前端库) |
+| `scripts/` | 可执行脚本(bash/node) | build-apk.sh build-desktop.sh build-rootfs.sh emu/(模拟器四件套) legacy/(Termux 时代归档) |
+| `android/` | 白板 app(Gradle 项目) | app/src/main/java/... MainActivity.java EngineBoot.java PairManager.java |
+| `android-spike/` | P1 技术验证遗迹(单 APK 内嵌 Node 首次跑通) | spike.apk 源码 |
+| `termux/` | 手机端 Termux 时代物料(过渡形态,已退役) | 仅存历史 |
+| `docs/` | 文档与归档 | archive/(README.termux.md 等过渡文档) |
+| `dist/` | 构建产物(gitignore) | PenEcho-board.apk index.html(安装页) |
+| `desktop/` | Electron 电脑端 | main.mjs bridge-bundle.mjs(生成) penecho/(生成) bin/(生成) |
+| `release/` | electron-builder 产物(gitignore) | pi-penecho-*-arm64.dmg |
 | 根目录规范文档 | L1-L5 + 说明 | INTENT.md alignment.md blueprint.md plan.md AI_README.md CLAUDE.md README*.md |
 
 ### 根目录允许的文件
 
 仅以下文件,禁止新增其他散落文件(脚本归 scripts/,文档归对应层):
 
-`AI_README.md`、`CLAUDE.md`、`INTENT.md`、`intent_log.md`、`alignment.md`、`blueprint.md`、`plan.md`、`README.md`、`README.zh-CN.md`、`README.termux.md`、`LICENSE`、`package.json`、`package-lock.json`、`bridge.log`(运行日志,gitignore)、`.gitignore`
+`AI_README.md`、`CLAUDE.md`、`INTENT.md`、`intent_log.md`、`alignment.md`、`blueprint.md`、`plan.md`、`README.md`、`README.zh-CN.md`、`LICENSE`、`package.json`、`package-lock.json`、`electron-builder.yml`、`bridge.log`(运行日志,gitignore)、`.gitignore`
 
 ### 目录对齐校验
 
-`dist/`、`node_modules/`、`android/.gradle/`、`android/app/build/` 均为生成物,不入 git、不写文档引用其内部。
+`dist/`、`release/`、`node_modules/`、`android/.gradle/`、`android/app/build/`、`desktop/bridge-bundle.mjs`、`desktop/penecho/`、`desktop/bin/` 均为生成物,不入 git、不写文档引用其内部。
 
 ### 禁止放的路径
 
