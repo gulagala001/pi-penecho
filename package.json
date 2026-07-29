@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node src/server.mjs",
-    "check": "node --check src/server.mjs && node --check src/bridge.mjs && node --check src/config.mjs && node --check src/prompt.mjs && node --check src/tools.mjs && node --check src/pair.mjs",
+    "check": "node --check src/server.mjs && node --check src/bridge.mjs && node --check src/config.mjs && node --check src/prompt.mjs && node --check src/tools.mjs && node --check src/pair.mjs && node --check src/sessions.mjs",
     "smoke": "node scripts/probe.mjs",
     "test:bridge": "node scripts/test-bridge.mjs"
   },

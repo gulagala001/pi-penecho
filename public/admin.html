@@ -115,11 +115,12 @@
 
 <div class="card">
   <h2>会话</h2>
-  <div class="row" style="margin-bottom:12px">
-    <button class="danger" onclick="resetSession()">新建对话</button>
+  <div class="row" style="margin-bottom:10px">
+    <input id="new-session-name" placeholder="新会话名称(可空,如:数学一/英语)" style="flex:1;max-width:280px">
+    <button onclick="newSession()">新建会话</button>
     <button class="ghost" onclick="undoTurn()">撤销上一轮</button>
-    <span class="muted">新建=清空记忆;误触发就撤销</span>
   </div>
+  <div id="session-list" style="margin-bottom:12px"></div>
   <div id="turns"></div>
 </div>
 
@@ -205,7 +206,7 @@ function currentModel() {
 
 async function refresh() {
   try {
-    const [cfg, health, turns] = await Promise.all([j("/config"), j("/health"), j("/session/turns")]);
+    const [cfg, health, turns, sessions] = await Promise.all([j("/config"), j("/health"), j("/session/turns"), j("/session/list")]);
     lastCfg = cfg;
     $("st-ok").textContent = health.ok ? "● 在线" : "○ 异常";
     $("st-profile").textContent = "profile:" + cfg.activeProfile;
@@ -229,6 +230,7 @@ async function refresh() {
     $("turns").innerHTML = turns.length
       ? turns.map(x => `<div class="turn"><span class="t">${new Date(x.t).toTimeString().slice(0,8)}</span><span class="intent">${x.intent}</span>${escapeHtml(x.observed || "")}${x.tools?.length ? `<span class="tools">⚒ ${x.tools.join(",")}</span>` : ""}</div>`).join("")
       : `<div class="muted">还没有轮次</div>`;
+    renderSessions(sessions);
   } catch (e) { $("st-ok").textContent = "○ 连接失败"; }
 }
 
@@ -281,10 +283,37 @@ async function deleteProfile() {
   if (r.ok) { toast("已删除"); formTouched = false; refresh(); } else toast("失败:" + (r.error || "?"), true);
 }
 
-async function resetSession() {
-  if (!confirm("新建对话:清空当前会话记忆?")) return;
-  const r = await j("/session/reset", { method: "POST" });
-  r.ok ? (toast("已开始新对话"), refresh()) : toast("失败", true);
+async function newSession() {
+  const name = $("new-session-name").value.trim();
+  const r = await j("/session/new", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+  if (r.ok) { $("new-session-name").value = ""; toast("已新建:「" + r.name + "」"); refresh(); } else toast("失败:" + (r.error || "?"), true);
+}
+async function switchTo(id) {
+  const r = await j("/session/switch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+  r.ok ? (toast("已切换到「" + (r.name || id.slice(0, 8)) + "」"), refresh()) : toast("失败:" + (r.error || "?"), true);
+}
+async function renameS(id, oldName) {
+  const name = prompt("会话重命名:", oldName);
+  if (name === null) return;
+  const r = await j("/session/rename", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, name }) });
+  r.ok ? (toast("已重命名"), refresh()) : toast("失败:" + (r.error || "?"), true);
+}
+async function deleteS(id, name) {
+  if (!confirm(`删除会话「${name}」?存档一并删除,不可恢复。`)) return;
+  const r = await j("/session/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+  r.ok ? (toast("已删除"), refresh()) : toast("失败:" + (r.error || "?"), true);
+}
+function renderSessions(d) {
+  if (!d.ok) { $("session-list").innerHTML = `<div class="muted">会话列表加载失败</div>`; return; }
+  if (!d.sessions.length) { $("session-list").innerHTML = `<div class="muted">还没有会话</div>`; return; }
+  $("session-list").innerHTML = d.sessions.map(s => `
+    <div class="turn" style="display:flex;align-items:center;gap:8px">
+      <span style="flex:1">${s.id === d.current ? "▶ " : ""}<b>${escapeHtml(s.name)}</b>
+        <span class="muted"> ${s.persona || ""} · ${new Date(s.createdAt).toLocaleString("zh-CN")}</span></span>
+      ${s.id === d.current ? `<span class="muted">当前</span>` : `<button class="ghost" onclick="switchTo('${s.id}')">切换</button>`}
+      <button class="ghost" onclick="renameS('${s.id}', '${escapeHtml(s.name).replace(/'/g, "\\'")}')">改名</button>
+      <button class="ghost" onclick="deleteS('${s.id}', '${escapeHtml(s.name).replace(/'/g, "\\'")}')">删</button>
+    </div>`).join("");
 }
 async function undoTurn() {
   const r = await j("/session/undo", { method: "POST" });

@@ -8,7 +8,8 @@ import {
   CONFIG_FILE, loadConfig, saveConfig, activeProfile, maskedKey,
 } from "./config.mjs";
 import {
-  initAgent, applyRuntime, getAgent, runTutorTurn, resetSession, undoTurn,
+  initAgent, applyRuntime, getAgent, getRuntime, runTutorTurn, undoTurn,
+  hardReset, replaceMessages, setTurnCommittedHook,
   turnLog, canvasSystemRef, fetchedModelsRef,
 } from "./bridge.mjs";
 import { listPersonas } from "./prompt.mjs";
@@ -16,6 +17,10 @@ import {
   pairStatus, pairTablet, createPairCode, redeemPairCode, confirmPair, rejectPair, pairMap,
   loadSyncFolders, saveSyncFolders, ensureSyncFolders,
 } from "./pair.mjs";
+import {
+  initSessions, appendDelta, listSessions, createSession, switchSession,
+  renameSession, deleteSession, restoreCurrent,
+} from "./sessions.mjs";
 
 const PORT = Number(process.env.PI_PENECHO_PORT || 9191);
 const ADMIN_HTML = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "admin.html");
@@ -44,6 +49,11 @@ function hotReload() {
 }
 
 initAgent(cfg);
+
+// 多会话:装配依赖 + 轮次入档钩子 + 启动回放(首个请求前 await sessionsReady)
+initSessions({ getAgent, getRuntime, applyRuntime, saveConfig, hardReset, replaceMessages });
+setTurnCommittedHook(appendDelta);
+const sessionsReady = restoreCurrent().catch((e) => { console.error("[sessions] 启动恢复失败:", e.message); });
 
 const upstreamEndpoint = () => activeProfile(cfg).apiUrl.replace(/\/+$/, "") + "/v1/messages";
 
@@ -151,7 +161,38 @@ const server = http.createServer(async (req, res) => {
     } catch (err) { return json(res, 400, { error: String(err.message || err) }); }
   }
 
-  if (req.method === "POST" && req.url === "/session/reset") { await resetSession(); return json(res, 200, { ok: true }); }
+  // ---- 多会话(存档在 ~/.pi-penecho/sessions,重启回放;reset=新建存档会话) ----
+  if (req.method === "POST" && req.url === "/session/reset") {
+    return json(res, 200, { ok: true, ...(await createSession()) });
+  }
+  if (req.method === "GET" && req.url === "/session/list") {
+    try { return json(res, 200, { ok: true, ...(await listSessions()) }); }
+    catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "POST" && req.url === "/session/new") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      return json(res, 200, { ok: true, ...(await createSession(body.name)) });
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "POST" && req.url === "/session/switch") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      return json(res, 200, { ok: true, ...(await switchSession(String(body.id || ""))) });
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "POST" && req.url === "/session/rename") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      return json(res, 200, { ok: true, ...(await renameSession(String(body.id || ""), body.name)) });
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "POST" && req.url === "/session/delete") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      return json(res, 200, { ok: true, ...(await deleteSession(String(body.id || ""))) });
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
   if (req.method === "POST" && req.url === "/session/undo") { return json(res, 200, { ok: true, removed: await undoTurn() }); }
   if (req.method === "GET" && req.url === "/session/turns") return json(res, 200, turnLog.slice(-50).reverse());
 
@@ -206,6 +247,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method !== "POST" || req.url !== "/v1/messages") { res.writeHead(404); return res.end("not found"); }
 
   // ---- PenEcho 入口 ----
+  await sessionsReady; // 首个请求前确保存档回放完成
   hotReload();
   const raw = await readBody(req);
   let body;

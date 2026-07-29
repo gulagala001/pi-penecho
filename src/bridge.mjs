@@ -125,10 +125,25 @@ export function getRuntime() { return runtime; }
 let gen = 0;
 export const currentGen = () => gen;
 
-export async function resetSession() {
+/** 硬复位:代际++ + 中止 + 等静默 + 清空 messages(多会话切换/回放的基础操作) */
+export async function hardReset() {
   gen++; agent.abort();
   await agent.waitForIdle().catch(() => {});
   agent.reset();
+}
+
+/** 整体替换会话消息(回放存档用);调用前自动 hardReset */
+export async function replaceMessages(msgs) {
+  await hardReset();
+  agent.state.messages = msgs;
+}
+
+// 轮次成功提交后的钩子(sessions.mjs 挂载,把本轮增量入档)
+let onTurnCommitted = null;
+export function setTurnCommittedHook(fn) { onTurnCommitted = fn; }
+
+export async function resetSession() {
+  await hardReset();
   turnLog.length = 0;
   console.log("[session] 新建对话:会话已清空");
 }
@@ -244,6 +259,7 @@ export async function runTutorTurn(text, images, res) {
   console.log(`[tutor] intent=${parsed.intent} observed=${JSON.stringify(parsed.observedText || "").slice(0, 60)}`);
   turnLog.push({ t: Date.now(), intent: parsed.intent, observed: parsed.observedText || "", tools: [...runToolCalls].filter(Boolean) });
   if (turnLog.length > 100) turnLog.shift();
+  if (onTurnCommitted) await onTurnCommitted().catch((e) => console.error("[sessions] 轮次入档失败:", e.message));
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(anthropicResponse(JSON.stringify(parsed))));
 }

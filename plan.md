@@ -56,7 +56,14 @@
 - **FEAT**: FEAT-3.2.2
 - 内容:src/sessions.mjs 存档/读档薄层(index.json+<id>.json 图像占位化);server.mjs 会话路由;控制台会话卡升级;手机端 ≡ 菜单入口;保住 runTutorTurn 全部既有逻辑
 - exit_criteria:①新建 2 会话各聊 1 轮→kill 桥→重启→会话列表/历史完整且可继续(test:bridge 逐会话验证)②切换会话后板书进入对应会话且 persona 随会话切换 ③npm run check + 既有 test:bridge 全绿(无回归)
-- status: todo
+- status: **done**(2026-07-29)
+  - 偏离确认:**复用 pi-agent-core JsonlSessionRepo**(薄层 sessions.mjs),未自研——create/list/open/delete/appendMessage/buildContext 探针全过,树状模型兼容线性 append
+  - 证据 ①:数学一(17 条)/英语(16 条)各聊 2 轮→kill→launchd 重启→list 两会话完整;switch 数学一回放 17 条后续聊「那我上次学到哪了」→ agent 答「第11讲(积分的概念与性质)收尾阶段」(重启后记忆连续,LLM 成功利用回放上下文)
+  - 证据 ②:switch A→persona 自动换回 kaoyan-tutor,switch B→general;板书轮次经 currentId 指针入对应档(onTurnCommitted 钩子增量 append)
+  - 证据 ③:npm run check 含 sessions.mjs 全绿;test:bridge 验收中跑 2 遍无回归
+  - 组件:src/sessions.mjs(JsonlSessionRepo 薄层:增量入档/切换回放/persona 随会话/启动恢复;图像占位化防膨胀);bridge.mjs hardReset/replaceMessages/setTurnCommittedHook;server.mjs 五条会话路由(reset 语义升级为新建存档会话);admin.html 会话卡(列表+新建命名+切换/改名/删除)
+  - 已知限制(代码注释同步):undo 后 jsonl 残留被撤销条目;存档图像占位化;双端勿同时聊同一会话(syncthing conflict 副本)
+  - 过程发现:repo.create 直接返回 Session(勿再 open,否则 metadata.path undefined 崩 exists)
 
 ### Phase 5: 电脑端 Electron app
 - **FEAT**: FEAT-2.1.1

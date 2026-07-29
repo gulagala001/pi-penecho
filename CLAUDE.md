@@ -22,8 +22,9 @@ kill $(lsof -tnP -iTCP:9191 -sTCP:LISTEN) && nohup node src/server.mjs > bridge.
 ## 架构
 
 ```
-src/server.mjs   HTTP 路由:/(控制台)、/config、/profiles、/config/fetch-models、/session/*、/v1/messages
-src/bridge.mjs   核心:agent 单例、resolveModel、runTutorTurn(gen 代际+abort+480s 看门狗)、会话管理、公式落档兜底
+src/server.mjs   HTTP 路由:/(控制台)、/config、/profiles、/config/fetch-models、/session/*(多会话)、/pair/*(配对)、/sync/folders、/v1/messages
+src/bridge.mjs   核心:agent 单例、resolveModel、runTutorTurn(gen 代际+abort+480s 看门狗)、会话管理(hardReset/replaceMessages/入档钩子)、公式落档兜底
+src/sessions.mjs 多会话:JsonlSessionRepo 薄层(pi-agent-core 复用);增量入档+切换回放+persona 随会话+启动恢复;存档 ~/.pi-penecho/sessions/
 src/config.mjs   配置 v2:profiles(多端点)+ persona + 通用项;~/.pi-penecho/config.json(600),旧版自动迁移
 src/prompt.mjs   persona 加载(personas/*.md + ~/.pi-penecho/personas/)、frontmatter 解析、画布契约注入、workspace CLAUDE.md 热加载
 src/tools.mjs    createWorkspaceTools(workspace):4 个文件工具,safeResolve 防逃逸;无 workspace → 零工具
@@ -54,6 +55,8 @@ public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 - **thinkingLevel 别上 high**:实测单轮 15 分钟。medium≈15 秒。
 - **中转端点 + 非内置模型两个坑**:① resolveModel 兜底构造时 maxTokens 必须 ≤32768(k3 的 131072 会 400);② galaihub 的 kimi-k2.7-code 在 effort=low 下输出全进 thinking、text 为空(官方端点正常)——该模型只能 medium/high/max。
 - **"讲完没落档"是头号历史投诉**:bridge.mjs 的 LATEX_RE 兜底(≥3 处公式未写文件→追加补写轮)和 persona 铁律是双保险,改动时两个都要保住。
+- **JsonlSessionRepo.create 直接返回 Session**:别再 open 一遍(open 要 metadata 带 path,传 Session 会崩 `exists(undefined)`);list() 返回的才是 metadata。
+- **多会话三条已知限制**(sessions.mjs 注释):undo 后 jsonl 残留被撤销条目;存档图像占位化(文字/板书才是记忆);双端勿同时聊同一会话(syncthing conflict 副本不丢但分叉)。
 - 长期记忆=文件,会话只是工作台。需要跨重启保留的东西走配置文件,不走会话。
 
 ## 外部依赖方
