@@ -19,6 +19,7 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.text.format.Formatter;
 import android.view.Gravity;
 import android.view.View;
@@ -74,6 +75,9 @@ public class MainActivity extends Activity {
     private Button btnSecondary;
     private volatile boolean keyChecked = false;
     private String macBaseUrl = null; // 局域网发现到的电脑端,如 http://192.168.5.16:9288
+    private boolean pendingInstall = false;   // 去系统设置开安装权限后,回来继续装
+    private boolean waitingServices = false;  // 服务探测线程在跑(防重入)
+    private boolean servicesReady = false;
 
     private final BroadcastReceiver installResult = new BroadcastReceiver() {
         @Override public void onReceive(Context ctx, Intent intent) {
@@ -135,6 +139,23 @@ public class MainActivity extends Activity {
 
     /** PackageInstaller 流式安装 assets 里的 termux.apk(免 FileProvider/免 androidx) */
     private void installEngine() {
+        // 安卓要求「允许本应用安装其他应用」先授权(API 26+);没有就引导去系统设置
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            showStep("还差一个权限:\n\n安卓要求你亲口允许「PenEcho 白板」安装应用。\n\n点下方按钮会跳到系统设置,把「允许来自此来源的应用」**打开**,然后按返回键回来,安装会自动继续。",
+                    "去开启安装权限", v -> {
+                        pendingInstall = true;
+                        try {
+                            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:" + getPackageName())));
+                        } catch (Exception e) {
+                            // 少数 ROM 没有这个设置页:退到应用详情页让用户自己找
+                            try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:" + getPackageName()))); }
+                            catch (Exception ignored) { }
+                        }
+                    });
+            return;
+        }
         showWait("正在打开发动机安装器…", null, null);
         new Thread(() -> {
             PackageInstaller installer = getPackageManager().getPackageInstaller();
@@ -144,8 +165,8 @@ public class MainActivity extends Activity {
                         PackageInstaller.SessionParams.MODE_FULL_INSTALL);
                 int sessionId = installer.createSession(params);
                 session = installer.openSession(sessionId);
-                long size = getAssets().openFd("termux.apk").getDeclaredLength();
-                try (OutputStream out = session.openWrite("termux.apk", 0, size);
+                // 长度传 -1(未知):assets 可能被压缩存储,openFd 取长度会抛异常
+                try (OutputStream out = session.openWrite("termux.apk", 0, -1);
                      InputStream in = getAssets().open("termux.apk")) {
                     byte[] buf = new byte[64 * 1024];
                     int n;
@@ -158,7 +179,7 @@ public class MainActivity extends Activity {
                 session.commit(pi.getIntentSender());
             } catch (Exception e) {
                 if (session != null) session.abandon();
-                ui.post(() -> showStep("自动安装失败(" + e.getMessage() + ")。\n\n也可以手动安装:把电脑上的 termux.apk 发到本机点开。",
+                ui.post(() -> showStep("自动安装失败(" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")\n\n请把这行字拍给开发者;\n也可以手动安装:把电脑上的 termux.apk 发到本机点开。",
                         "重试", v -> installEngine()));
             }
         }, "install-engine").start();
@@ -339,15 +360,19 @@ public class MainActivity extends Activity {
     // ---------- 服务探测 ----------
 
     private void waitForServices() {
+        if (waitingServices || servicesReady) return;
+        waitingServices = true;
         new Thread(() -> {
             long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MS;
             while (System.currentTimeMillis() < deadline) {
                 if (httpOk(BOARD_URL) && httpOk(HEALTH_URL)) {
+                    waitingServices = false;
                     ui.post(this::onServicesReady);
                     return;
                 }
                 sleep(1500);
             }
+            waitingServices = false;
             ui.post(() -> showStep("等了很久服务还没起来。\n\n请确认发动机的初始化命令已在 Termux 里跑完;\n然后把 Termux 电池设为「无限制」防杀后台。",
                     "重试连接", v -> { showWait("正在连接白板服务…", null, null); waitForServices(); },
                     "重新初始化引导", v -> showInitGuide()));
@@ -355,9 +380,25 @@ public class MainActivity extends Activity {
     }
 
     private void onServicesReady() {
+        servicesReady = true;
         waitView.setVisibility(View.GONE);
         web.loadUrl(BOARD_URL);
         checkApiKeyOnce();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pendingInstall) {
+            // 从「允许安装应用」系统设置回来:继续装发动机
+            pendingInstall = false;
+            installEngine();
+        } else if (waitView != null && waitView.getVisibility() == View.VISIBLE
+                && isInstalled(TERMUX_PKG) && !servicesReady && !waitingServices) {
+            // 从 Termux 初始化回来:自动重连服务
+            showWait("正在连接白板服务…", null, null);
+            waitForServices();
+        }
     }
 
     /** 首次就绪时检测桥里有没有 API key,没有就直接带用户去控制台填 */
