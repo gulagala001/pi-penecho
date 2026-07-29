@@ -19,7 +19,10 @@
 - **FEAT**: FEAT-1.1.1
 - 内容:scripts/emu 四件套;nodejs-lts deb 提取(node+全部依赖 .so)+ hello.mjs 缝入 jniLibs(lib*.so 伪装+useLegacyPackaging);spike Activity exec 起 server;失败则启 proot 回退再验
 - exit_criteria:①模拟器装 spike.apk 后 `adb shell curl 127.0.0.1:8787/hello` 返回 200(截图留证)②`adb shell ps` 可见 node 进程且 SELinux 无 denial 日志
-- status: todo
+- status: **done**(2026-07-29)
+  - 证据 ①:`adb forward` + curl 返回 `hello from embedded node v24.18.0 (arm64)`;app 界面自证 ✅(截图 spike-final.png)
+  - 证据 ②:ps 可见 `libnode_exec.so` 进程;dmesg 无 avc denied
+  - 过程发现(进 CLAUDE.md 教训库):AGP jniLibs 只打包 *.so 后缀(libz.so.1 等被丢弃)→ 依赖库走 assets 解压+LD_LIBRARY_PATH;模拟器系统代理劫回环(显式 NO_PROXY);明文 HTTP 需 manifest usesCleartextTraffic;Deb 解包用 bsdtar(Mac ar 不认);libsqlite 独立成包;node 24 deb 依赖 9 库(z/cares/sqlite3/crypto.3/ssl.3/icudata.78/i18n.78/icuuc.78/c++_shared)
 
 ### Phase 2: 单 APK 成品化(手机端一体化)
 - **FEAT**: FEAT-1.1.2
@@ -74,10 +77,13 @@
 | 时间 | 动作 | 结果 |
 |------|------|------|
 | 2026-07-29 | L1-L5 建立 | 待 P1 开工 |
+| 2026-07-29 | pi-session-scout 调研回报 | ①pi-agent-core harness 层有 JsonlSessionRepo/Session(磁盘持久化 create/open/list/delete/fork),Agent 多实例无限制,messages 可序列化 → P4 优先评估复用(不重复造轮子) ②pi-ai/pi-agent-core 最后支持 Node20 的版本为 0.74.2,无 Node18 版 → nodejs-mobile 路线终局排除,ADR-1 直连内嵌确认为唯一路径 |
 
 ## 偏离记录
 
-(空——开工后一条一记,藏=违规)
+| 时间 | 偏离 | 原因 |
+|------|------|------|
+| 2026-07-29 | P4 持久化优先评估 pi-agent-core 自带 JsonlSessionRepo(原计划纯自研 sessions.mjs) | 不重复造轮子(约束);若其树状模型与 runTutorTurn 线性 messages 不兼容再回退自研薄层并再记偏离 |
 
 ## 与 L3/L4 对齐校验
 

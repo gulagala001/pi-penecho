@@ -9,3 +9,10 @@ android/.gradle/
 android/app/build/
 android/local.properties
 android/app/src/main/assets/termux.apk
+
+# spike:node 二进制与依赖库(Termux deb 提取,构建时重取)
+android-spike/app/src/main/jniLibs/
+android-spike/app/src/main/assets/libs/
+android-spike/.gradle/
+android-spike/app/build/
+android-spike/local.properties

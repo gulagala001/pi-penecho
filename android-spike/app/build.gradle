@@ -1,0 +1,26 @@
+plugins { id "com.android.application" }
+
+android {
+    namespace "com.penecho.spike"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.penecho.spike"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "0.1"
+    }
+
+    packagingOptions {
+        jniLibs {
+            // .so 必须真实解压到 nativeLibraryDir,否则没有文件路径可 exec
+            useLegacyPackaging = true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
