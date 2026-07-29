@@ -12,7 +12,10 @@ import {
   turnLog, canvasSystemRef, fetchedModelsRef,
 } from "./bridge.mjs";
 import { listPersonas } from "./prompt.mjs";
-import { pairStatus, pairTablet } from "./pair.mjs";
+import {
+  pairStatus, pairTablet, createPairCode, redeemPairCode, confirmPair, rejectPair, pairMap,
+  loadSyncFolders, saveSyncFolders, ensureSyncFolders,
+} from "./pair.mjs";
 
 const PORT = Number(process.env.PI_PENECHO_PORT || 9191);
 const ADMIN_HTML = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "admin.html");
@@ -161,6 +164,44 @@ const server = http.createServer(async (req, res) => {
     try { return json(res, 200, await pairTablet()); }
     catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
   }
+  // 配对码:生成(电脑端)/ 核销(手机端)/ 确认(电脑端)/ 拒绝 / 映射(手机端)
+  if (req.method === "POST" && req.url === "/pair/code") {
+    return json(res, 200, { ok: true, ...createPairCode() });
+  }
+  if (req.method === "POST" && req.url === "/pair/redeem") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      return json(res, 200, await redeemPairCode(body.code, body.deviceId, body.deviceName));
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "POST" && req.url === "/pair/confirm") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      return json(res, 200, await confirmPair(body.deviceId, body.folders));
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "POST" && req.url === "/pair/reject") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      return json(res, 200, rejectPair(body.deviceId));
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  if (req.method === "GET" && req.url.startsWith("/pair/map")) {
+    try {
+      const q = new URL(req.url, "http://x").searchParams;
+      return json(res, 200, await pairMap(q.get("deviceId")));
+    } catch (err) { return json(res, 200, { ok: false, error: String(err.message || err) }); }
+  }
+  // 同步文件夹注册表:保存(方向/启用修改)并落地到 syncthing
+  if (req.method === "POST" && req.url === "/sync/folders") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      if (!Array.isArray(body.folders)) throw new Error("folders 必须是数组");
+      saveSyncFolders({ folders: body.folders });
+      const results = await ensureSyncFolders();
+      return json(res, 200, { ok: true, results, ...(await pairStatus()) });
+    } catch (err) { return json(res, 400, { ok: false, error: String(err.message || err) }); }
+  }
 
   if (req.method !== "POST" || req.url !== "/v1/messages") { res.writeHead(404); return res.end("not found"); }
 
@@ -211,10 +252,14 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(PORT, "0.0.0.0", () => {
   const p = activeProfile(cfg);
   console.log(`pi-penecho  http://127.0.0.1:${PORT}`);
   console.log(`profile=${cfg.activeProfile}  model=${p.model}  thinking=${cfg.thinkingLevel}  persona=${cfg.persona}  keepImages=${cfg.keepImages}`);
+  // 绑 0.0.0.0:平板经 LAN 访问配对/同步 API(控制台与 PenEcho 本机回环不受影响)
+  const ips = Object.values(os.networkInterfaces()).flat()
+    .filter((x) => x && x.family === "IPv4" && !x.internal).map((x) => x.address);
+  if (ips.length) console.log(`局域网入口(平板配对用): ${ips.map((ip) => `http://${ip}:${PORT}`).join("  ")}`);
 });
 
 // ---------- 局域网安装门户 ----------

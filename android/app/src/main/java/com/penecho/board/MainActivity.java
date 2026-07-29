@@ -24,6 +24,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -187,12 +188,104 @@ public class MainActivity extends Activity {
         bg.setColor(Color.rgb(0x44, 0x44, 0x44));
         dot.setBackground(bg);
         dot.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setItems(new String[]{"控制台(配置/人设)", "回到白板", "刷新页面"}, (d, which) -> {
-                    if (which == 0) web.loadUrl(ADMIN_URL);
-                    else if (which == 1) web.loadUrl(BOARD_URL);
+                .setItems(new String[]{"配对电脑", "控制台(配置/人设)", "回到白板", "刷新页面"}, (d, which) -> {
+                    if (which == 0) showPairFlow();
+                    else if (which == 1) web.loadUrl(ADMIN_URL);
+                    else if (which == 2) web.loadUrl(BOARD_URL);
                     else web.reload();
                 }).show());
         return dot;
+    }
+
+    // ---------- 配对电脑(FEAT-2.2.2) ----------
+
+    private EditText pairCodeInput;
+
+    /** 入口:找电脑(子网扫门户;模拟器内置 10.0.2.2)→ 输码视图 */
+    private void showPairFlow() {
+        showWait("正在寻找电脑…", null, null);
+        new Thread(() -> {
+            String portal = discoverPortalBlocking();
+            if (portal == null) {
+                ui.post(() -> showStep("找不到电脑端。\n请确认:①电脑端程序已启动 ②本机与电脑连同一 WiFi",
+                        "重试", v -> showPairFlow(),
+                        "手动输入 IP", v -> promptManualIp()));
+                return;
+            }
+            // 门户(9288)与桥(9191)同机:换端口即桥地址
+            final String base = portal.replace(":" + PORTAL_PORT, ":9191");
+            ui.post(() -> showCodeInput(base));
+        }, "pair-discover").start();
+    }
+
+    private void promptManualIp() {
+        final EditText input = new EditText(this);
+        input.setHint("如 192.168.1.5");
+        new AlertDialog.Builder(this)
+                .setTitle("输入电脑的局域网 IP")
+                .setView(input)
+                .setPositiveButton("确定", (d, w) -> {
+                    String ip = input.getText().toString().trim();
+                    if (!ip.isEmpty()) showCodeInput("http://" + ip + ":9191");
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 输码视图:状态文本 + 6 位码输入框(插在 waitText 之后)+ 开始/取消 */
+    private void showCodeInput(String bridgeBase) {
+        waitText.setText("已找到电脑:" + bridgeBase + "\n\n请在电脑端控制台点「生成配对码」,\n把 6 位码填到下面:");
+        if (pairCodeInput == null) {
+            pairCodeInput = new EditText(this);
+            pairCodeInput.setHint("6 位配对码");
+            pairCodeInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            pairCodeInput.setGravity(Gravity.CENTER);
+            pairCodeInput.setTextSize(24);
+        }
+        if (pairCodeInput.getParent() == null) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(220), ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = dp(16);
+            ((LinearLayout) waitView).addView(pairCodeInput, 1, lp);
+        }
+        pairCodeInput.setText(""); // 重试/重进时清掉残留输入
+        btnPrimary.setVisibility(View.VISIBLE);
+        btnPrimary.setText("开始配对");
+        btnPrimary.setOnClickListener(v -> {
+            String code = pairCodeInput.getText().toString().trim();
+            if (code.length() != 6) { Toast.makeText(this, "请输入 6 位配对码", Toast.LENGTH_SHORT).show(); return; }
+            startPair(bridgeBase, code);
+        });
+        btnSecondary.setVisibility(View.VISIBLE);
+        btnSecondary.setText("取消");
+        btnSecondary.setOnClickListener(v -> hidePairView());
+        waitView.setVisibility(View.VISIBLE);
+        waitView.bringToFront();
+    }
+
+    private void startPair(String bridgeBase, String code) {
+        if (pairCodeInput.getParent() != null) ((LinearLayout) waitView).removeView(pairCodeInput);
+        showWait("正在校验配对码…", null, null);
+        new PairManager(getFilesDir()).start(bridgeBase, code, Build.MODEL, new PairManager.Callback() {
+            @Override public void onState(String state, String detail) {
+                ui.post(() -> waitText.setText(detail));
+            }
+            @Override public void onDone(String detail) {
+                ui.post(() -> {
+                    Toast.makeText(MainActivity.this, detail, Toast.LENGTH_LONG).show();
+                    showStep(detail + "\n\n文件夹将自动开始同步。", "回到白板", v -> hidePairView());
+                });
+            }
+            @Override public void onError(String reason) {
+                ui.post(() -> showStep("配对失败:" + reason, "重试", v -> showCodeInput(bridgeBase),
+                        "取消", v -> hidePairView()));
+            }
+        });
+    }
+
+    private void hidePairView() {
+        if (pairCodeInput != null && pairCodeInput.getParent() != null)
+            ((LinearLayout) waitView).removeView(pairCodeInput);
+        waitView.setVisibility(View.GONE);
     }
 
     private void showWait(String msg, String primaryLabel, View.OnClickListener primaryAction) {
@@ -208,7 +301,6 @@ public class MainActivity extends Activity {
         showWait(msg, primaryLabel, primaryAction);
     }
 
-    @SuppressWarnings("unused")
     private void showStep(String msg, String primaryLabel, View.OnClickListener primaryAction,
                           String secondaryLabel, View.OnClickListener secondaryAction) {
         showWait(msg, primaryLabel, primaryAction);

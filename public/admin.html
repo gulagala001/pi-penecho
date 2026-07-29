@@ -125,12 +125,23 @@
 
 <div class="card">
   <h2>平板配对</h2>
-  <div class="row" style="margin-bottom:12px">
-    <button onclick="doPair()">配对平板</button>
-    <button class="ghost" onclick="loadPairStatus()">刷新状态</button>
-    <span class="muted">平板跑完一键安装后,点「配对平板」;笔记/档案与配置(API key、人设)随后自动双端同步</span>
+  <div class="row" style="margin-bottom:8px">
+    <button onclick="genCode()">生成配对码</button>
+    <span class="muted">手机端打开「PenEcho 白板」→ 配对电脑 → 输入 6 位码</span>
   </div>
-  <div id="pair-status" class="muted">读取中…</div>
+  <div id="pair-code" style="margin-bottom:12px"></div>
+  <div id="pair-pending"></div>
+  <div id="pair-peers" class="muted" style="margin-bottom:4px"></div>
+</div>
+
+<div class="card">
+  <h2>同步文件夹(项目与方向)</h2>
+  <div class="muted" style="margin-bottom:8px">每个文件夹选方向:双向 / 仅电脑→平板 / 仅平板→电脑;改动保存即生效。</div>
+  <div id="sync-folders"></div>
+  <div class="row" style="margin-top:10px">
+    <button onclick="saveFolders()">保存文件夹设置</button>
+    <span class="muted">手机端安装入口:<span id="portal-link">http://&lt;电脑IP&gt;:9288</span></span>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -280,31 +291,121 @@ async function undoTurn() {
   r.ok ? (toast(r.removed ? "已撤销上一轮" : "没有可撤销的轮次"), refresh()) : toast("失败", true);
 }
 
-// ---------- 平板配对 ----------
+// ---------- 平板配对与同步文件夹 ----------
+const DIRS = { both: "双向", send: "仅电脑→平板", receive: "仅平板→电脑" };
+let pairState = null;
+let codeTimer = null;
+
+async function genCode() {
+  const r = await j("/pair/code", { method: "POST" });
+  if (!r.ok) return toast(r.error || "生成失败", true);
+  const el = $("pair-code");
+  const expiresAt = r.expiresAt;
+  clearInterval(codeTimer);
+  const render = () => {
+    const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+    el.innerHTML = left > 0
+      ? `<span style="font-size:34px;font-weight:700;letter-spacing:8px;color:#7dd3fc">${escapeHtml(r.code)}</span> <span class="muted">${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} 内有效</span>`
+      : `<span class="muted">已过期,请重新生成</span>`;
+    if (left <= 0) clearInterval(codeTimer);
+  };
+  render();
+  codeTimer = setInterval(render, 1000);
+}
+
 async function loadPairStatus() {
-  const el = $("pair-status");
   try {
     const r = await j("/pair/status");
-    if (!r.ok) { el.textContent = r.error || "Syncthing 不可用"; return; }
-    const peers = r.peers.length ? r.peers.map((p) => `${p.name}(${p.id})`).join("、") : "无";
-    const folders = r.folders.length ? r.folders.map((f) => `${f.id}(共享给 ${f.sharedWith} 台)`).join("、") : "无";
-    el.innerHTML = `已配对设备:${escapeHtml(peers)}<br>共享文件夹:${escapeHtml(folders)}<br><span class="muted">平板端安装入口:https://gulagala001.github.io/pi-penecho/</span>`;
-  } catch (e) { el.textContent = "读取失败: " + e.message; }
+    if (!r.ok) { $("pair-peers").textContent = r.error || "Syncthing 不可用"; return; }
+    pairState = r;
+    renderPending();
+    renderPeers();
+    renderFolders();
+  } catch (e) { $("pair-peers").textContent = "读取失败: " + e.message; }
 }
-async function doPair() {
-  const el = $("pair-status");
-  el.textContent = "正在扫描局域网设备(约 20 秒,请勿重复点击)…";
-  const r = await j("/pair/tablet", { method: "POST" });
-  if (!r.ok) { el.textContent = r.error || "配对失败"; toast("配对未完成", true); return; }
-  toast("配对已发起 ✓");
-  el.innerHTML = `已发起配对,设备 ${escapeHtml(r.device)}<br>共享文件夹:${escapeHtml((r.shared || []).join("、") || "无")}`
-    + (r.missing && r.missing.length ? `<br><span class="muted">以下文件夹未配置,请先运行 scripts/install-syncthing-mac.sh:${escapeHtml(r.missing.join("、"))}</span>` : "")
-    + `<br><span class="muted">${escapeHtml(r.note || "")}</span>`;
+
+function renderPeers() {
+  const peers = pairState.peers || [];
+  $("pair-peers").innerHTML = "已配对设备:" + (peers.length
+    ? peers.map((p) => `${escapeHtml(p.name)}(${escapeHtml(p.short)})`).join("、")
+    : "无");
+}
+
+function renderPending() {
+  const box = $("pair-pending");
+  const list = pairState.pending || [];
+  if (!list.length) { box.innerHTML = ""; return; }
+  const folders = (pairState.folders || []).filter((f) => f.enabled);
+  box.innerHTML = list.map((p) => `
+    <div style="border:1px solid #3b82f6;border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="margin-bottom:8px">📱 <b>${escapeHtml(p.name)}</b> <span class="muted">(${escapeHtml(p.short)})请求配对</span></div>
+      ${folders.map((f) => `
+        <div class="row" style="margin:4px 0">
+          <label><input type="checkbox" data-dev="${escapeHtml(p.deviceId)}" data-fid="${escapeHtml(f.id)}" checked> ${escapeHtml(f.label || f.id)}</label>
+          <select data-dir-for="${escapeHtml(p.deviceId)}:${escapeHtml(f.id)}">
+            ${Object.entries(DIRS).map(([v, t]) => `<option value="${v}" ${v === f.direction ? "selected" : ""}>${t}</option>`).join("")}
+          </select>
+        </div>`).join("")}
+      <div class="row" style="margin-top:8px">
+        <button onclick="confirmPair('${escapeHtml(p.deviceId)}')">确认配对</button>
+        <button class="ghost" onclick="rejectPair('${escapeHtml(p.deviceId)}')">拒绝</button>
+      </div>
+    </div>`).join("");
+}
+
+async function confirmPair(deviceId) {
+  const folders = [];
+  document.querySelectorAll(`input[type=checkbox][data-dev="${CSS.escape(deviceId)}"]`).forEach((cb) => {
+    if (!cb.checked) return;
+    const fid = cb.dataset.fid;
+    const sel = document.querySelector(`select[data-dir-for="${CSS.escape(deviceId + ":" + fid)}"]`);
+    folders.push({ id: fid, direction: sel ? sel.value : "both" });
+  });
+  const r = await j("/pair/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId, folders }) });
+  if (!r.ok) return toast(r.error || "确认失败", true);
+  toast(`配对完成:${r.device},共享 ${r.shared.length} 个文件夹`);
+  loadPairStatus();
+}
+
+async function rejectPair(deviceId) {
+  await j("/pair/reject", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId }) });
+  toast("已拒绝");
+  loadPairStatus();
+}
+
+function renderFolders() {
+  const box = $("sync-folders");
+  const folders = pairState.folders || [];
+  if (!folders.length) { box.innerHTML = '<span class="muted">注册表为空</span>'; return; }
+  box.innerHTML = folders.map((f) => `
+    <div class="row" style="margin:6px 0">
+      <label style="min-width:220px"><input type="checkbox" data-sf-enabled="${escapeHtml(f.id)}" ${f.enabled ? "checked" : ""}> <b>${escapeHtml(f.label || f.id)}</b></label>
+      <select data-sf-dir="${escapeHtml(f.id)}">
+        ${Object.entries(DIRS).map(([v, t]) => `<option value="${v}" ${v === f.direction ? "selected" : ""}>${t}</option>`).join("")}
+      </select>
+      <span class="muted">${escapeHtml(f.macPath)} ${f.registered ? "" : "(未注册)"}</span>
+    </div>`).join("");
+}
+
+async function saveFolders() {
+  if (!pairState) return;
+  const folders = (pairState.folders || []).map((f) => ({
+    ...f,
+    enabled: !!document.querySelector(`input[data-sf-enabled="${CSS.escape(f.id)}"]`)?.checked,
+    direction: document.querySelector(`select[data-sf-dir="${CSS.escape(f.id)}"]`)?.value || f.direction,
+  }));
+  const r = await j("/sync/folders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folders }) });
+  if (!r.ok) return toast(r.error || "保存失败", true);
+  const bad = (r.results || []).filter((x) => !x.ok);
+  toast(bad.length ? `已保存,${bad.length} 项未注册(路径缺失)` : "文件夹设置已保存并生效", !!bad.length);
+  pairState = r;
+  renderFolders();
 }
 
 refresh();
 loadPairStatus();
 setInterval(refresh, 5000);
+setInterval(loadPairStatus, 8000);
 </script>
 </body>
 </html>

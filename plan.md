@@ -44,7 +44,12 @@
 - **FEAT**: FEAT-3.1.1
 - 内容:pair.mjs 状态机(code/redeem/pending/confirm/reject/map);sync-folders.json 注册表+ensureSyncFolders;控制台「平板入口+配对+项目与同步」三卡;手机端配对页(读 deviceID→redeem→轮询→按 map 接受)
 - exit_criteria:①端到端:控制台生码→模拟器 app 输码→控制台确认(勾选 2 文件夹分别 双向/仅电脑→平板)→syncthing 配置与勾选一致(API 断言 type)②手机端文件夹落点与 map 一致且开始同步(8384 API 可见 completion 前进)③错码/过期/拒绝三错误路径均有明确界面反馈
-- status: todo
+- status: **done**(2026-07-29)
+  - 证据 ①(端到端):控制台生码→模拟器 app ≡→配对电脑(自动发现 10.0.2.2:9288→9191)→输码 redeem(pending 出现)→控制台 confirm(考研new=both/配置=send)→Mac syncthing API 断言:kaoyan-new type=sendreceive、pi-penecho-config type=sendonly,均共享给手机 ✓;confirm 方向写回注册表(单一事实源)✓
+  - 证据 ②(手机端):手机 syncthing 两 folder 落点 files/Projects/考研new、files/.pi-penecho 与 map 一致,type 镜像正确(pi-penecho-config 由 sendreceive 被 PUT 更正为 receiveonly=方向跟随逻辑);**真实文件落地**:手机收到 config.json(含 key)+ 考研new/0 看板.md、CLAUDE.md;两端 connections connected=true
+  - 证据 ③(错误路径):错码 UI「配对码不对,请核对后重试」/拒绝 UI「已被电脑端拒绝或超时」(均截图)/过期契约「配对码已过期,请在电脑端重新生成」
+  - 组件:PairManager.java(redeem→alreadyPaired 短路/轮询→注册 Mac 设备→按 map accept+方向 PUT 跟随);MainActivity ≡菜单「配对电脑」全流程视图(发现/手动 IP/输码/重试清输入);pair.mjs 状态机+server.mjs 绑 0.0.0.0(LAN 可达)
+  - 过程发现(已进 CLAUDE.md 教训库):syncthing folder.type 文件夹级非设备级;folder 共享前设备须先 /config/devices 注册;已配对设备 redeem 必须短路否则 reject 失效;模拟器 NAT 隔 discovery 需 tcp://10.0.2.2:22000 特例
 
 ### Phase 4: 项目内多会话
 - **FEAT**: FEAT-3.2.1
@@ -91,6 +96,28 @@
 **正在做**:android/ 主工程一体化改造,下一步=MainActivity 删除 decideFlow/installEngine/showInitGuide(Termux 流程),改为启动 EngineService→BOOTING(EngineBoot.Listener.onProgress)→onReady→白板;保留 buildWebView/buildWaitView/buildFab/discoverPortal/waitForServices/key 检测;manifest 删 REQUEST_INSTALL_PACKAGES,加 FOREGROUND_SERVICE/FOREGROUND_SERVICE_DATA_SYNC(API34)/POST_NOTIFICATIONS(API33)+`<service android:name=".EngineService" android:foregroundServiceType="dataSync" android:exported="false"/>`;build-apk.sh 删 assets/termux.apk 拷贝行;.gitignore 加 android/app/src/main/jniLibs/ 与 assets/rootfs/(二进制不入库,build-rootfs.sh 重取);验收=模拟器冷装→BOOTING→白板 200→adb forward 9191 后 BASE=http://127.0.0.1:9191 npm run test:bridge(debug 版可 run-as 预置含 key 的 config.json)。
 
 **环境速查**:JAVA_HOME=~/.local/java/temurin-21/Contents/Home;ANDROID_HOME=~/.local/android;gradle=~/.local/gradle-8.10.2/bin/gradle;adb=~/.local/android/platform-tools/adb;AVD 起法 scripts/emu/up.sh;gh=~/.local/bin/gh(已登录);release=gulagala001/pi-penecho v0.3.0(公开)。
+
+## Phase 3 中途快照(压缩保护 · 2026-07-29 深夜)
+
+**正在做**:FEAT-2.2.2 手机端配对页收尾。PairManager.java 已写完(见上「已完成」)。下一步:
+1. MainActivity.java:≡ 菜单加第 4 项「配对电脑」→ 配对流程视图(复用 waitView 容器或直接加 pairView:EditText 6 位码+状态 TextView+确定/取消按钮)。流程:新线程 discoverPortalBlocking() 找电脑 IP(模拟器命中 10.0.2.2:9288)→ bridgeBase=http://IP:9191 → new PairManager(getFilesDir()).start(bridgeBase, code, "平板", callback);callback 全部 ui.post 回主线程更新 waitText;onDone 3 秒后回白板
+2. **server.mjs `server.listen(PORT, "127.0.0.1")` 必须改成绑 `0.0.0.0`**——否则真机经 LAN 永远访问不到桥的配对 API(模拟器 10.0.2.2 转发到宿主回环所以模拟器不测也能过,但真机是终极目标)。portal 9288 已是 0.0.0.0 先例。改完在控制台顶部或启动日志提示 LAN 地址
+3. scripts/build-apk.sh 重建 → dist/PenEcho-board.apk
+4. `npm run check`
+5. 重启 Mac 桥:`kill $(lsof -tnP -iTCP:9191 -sTCP:LISTEN) && nohup node src/server.mjs > bridge.log 2>&1 &`;确认 syncthing launchd 在跑(`curl -H "X-API-Key: $(grep -o '<apikey>[^<]*' ~/.config/syncthing/config.xml | sed 's/<apikey>//')" http://127.0.0.1:8384/rest/system/status`)
+6. 模拟器验收(scripts/emu/up.sh;adb install -r dist/PenEcho-board.apk):
+   - 控制台 localhost:9191 生码 → 模拟器 app ≡ 配对电脑输码 → 控制台 pending 确认(考研new=双向、配置=仅电脑→平板)→ 断言 `curl 8384/rest/config/folders/kaoyan-new .type==sendreceive`、`pi-penecho-config .type==sendonly`
+   - 手机端:`adb forward tcp:18384` → 手机 syncthing 8384 folders 落点=/data/user/0/com.penecho.board/files/Projects/考研new 且 type 镜像(receiveonly)
+   - 错码(redeem error 显示)/过期(等 10min 或直接改 pair.mjs 临时短码?用错码+拒绝两路即可,过期可 curl 模拟)/拒绝(控制台点拒绝→手机显示被拒)
+
+**关键实现细节(防遗忘)**:
+- PairManager 轮询确认逻辑:peers 有我=confirmed;pending 无我且 peers 无我=被拒;10 分钟超时
+- 手机端 syncthing REST 鉴权:X-API-Key 从 files/sync/config.xml 正则抠(<apikey>)
+- 手机端 accept folder body:id/label/path/tabletPath expandHome(~→getFilesDir)/type 来自 map(已是镜像)/devices=[{deviceID:macDeviceId}]/ignorePerms/rescanIntervalS=30/fsWatcherEnabled
+- server.mjs /pair/map 已 await pairMap(async,带 macDeviceId=Mac syncthing myID)
+- admin.html 配对卡已有 renderPending(data-dev 复选框+data-dir-for 方向下拉),确认按钮收集选择 POST /pair/confirm {deviceId, folders:[{id,direction}]}
+
+**环境速查**:同 Phase 2 快照(JAVA_HOME/ANDROID_HOME/adb/AVD "test"/gh)。adb forward 高位端口 19191/13888/18384。
 
 **调研结论(P4 用)**:pi-agent-core harness 层有 JsonlSessionRepo/Session(磁盘持久化 create/open/list/delete/fork),Agent 多实例无限制,messages 可 get/set 序列化;pi-ai 0.74.2=最后支持 Node20 版,无 Node18 版(降级路线死刑,ADR-1 直连内嵌唯一解)。
 

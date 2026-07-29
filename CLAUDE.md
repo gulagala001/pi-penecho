@@ -44,6 +44,10 @@ public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 - **明文 HTTP 要 manifest 显式放行**:`usesCleartextTraffic="true"`,否则 `Cleartext HTTP traffic not permitted`(回环也拦)。
 - **.deb 在 Mac 用 bsdtar 解**(tar -xf),系统 `ar` 不认;Termux 的库与 CLI 分包(如 libsqlite ≠ sqlite)。
 - **node 24(Termux deb)依赖 9 个库**:libz.so.1、libcares.so、libsqlite3.so、libcrypto.so.3、libssl.so.3、libicudata/i18n/uc.so.78、libc++_shared.so;PT_INTERP=/system/bin/linker64,无 proot 可直连(已验证,见 plan P1)。
+- **syncthing folder.type 是文件夹级不是设备级**:「A 设备双向、B 设备只收」同一 folder 做不到。配对确认时的方向选择必须写回 sync-folders.json 注册表(单一事实源),pairMap 永远读注册表。
+- **syncthing 共享文件夹前设备必须先注册**:`POST /config/devices` 加对端,folder.devices 才能引用;只写 folder 不注册设备 = 永远连不上(connections 为空)。
+- **已配对设备重新 redeem 必须短路**(alreadyPaired 直接放行去同步设置):否则轮询把历史 peers 误判成本轮确认,reject 对老设备静默失效。
+- **模拟器 NAT 隔离 syncthing discovery**:两端互不可见,验收时手机端 Mac 设备地址手动改 `tcp://10.0.2.2:22000`;真机同 WiFi 用 dynamic 不受影响,不要为模拟器改产品代码。
 
 - **0.0.0.0 不能进浏览器**:PenEcho 启动日志的 `http://0.0.0.0:3888` 是监听声明,系统代理会 502。访问永远用 `localhost:3888`。
 - **角色边界必须写死**:不约束时 agent 会把职责文件(CLAUDE.md)当板书素材抄给学生。persona 里的边界段不许删。
