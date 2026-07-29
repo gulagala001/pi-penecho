@@ -12,7 +12,13 @@
     "smoke": "node scripts/probe.mjs",
     "test:bridge": "node scripts/test-bridge.mjs"
   },
-  "keywords": ["penecho", "whiteboard", "ai-agent", "kimi", "handwriting"],
+  "keywords": [
+    "penecho",
+    "whiteboard",
+    "ai-agent",
+    "kimi",
+    "handwriting"
+  ],
   "license": "MIT",
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.82.1",
@@ -20,5 +26,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }

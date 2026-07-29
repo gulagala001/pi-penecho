@@ -1,0 +1,26 @@
+plugins { id "com.android.application" }
+
+android {
+    namespace "com.penecho.board"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.penecho.board"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            // 自用分发:debug key 签名即可安装;不混淆(WebView 壳无此需求)
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

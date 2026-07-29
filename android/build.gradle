@@ -1,0 +1,4 @@
+// 顶层构建脚本:仅声明 AGP 版本(无 androidx 依赖,纯框架 Activity + WebView)
+plugins {
+    id "com.android.application" version "8.5.2" apply false
+}

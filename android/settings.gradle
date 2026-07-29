@@ -1,0 +1,10 @@
+// PenEcho 白板壳 — 安卓构建配置
+pluginManagement {
+    repositories { google(); mavenCentral() }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = "PenEchoBoard"
+include ":app"

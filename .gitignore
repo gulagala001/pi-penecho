@@ -2,3 +2,9 @@ node_modules/
 *.log
 .DS_Store
 nohup.out
+dist/
+
+# Android 构建
+android/.gradle/
+android/app/build/
+android/local.properties

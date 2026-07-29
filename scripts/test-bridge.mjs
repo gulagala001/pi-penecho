@@ -1,5 +1,8 @@
 // 模拟 PenEcho 请求,测试桥接全链路:工具调用 + JSON 输出 + 会话记忆
+// BASE 环境变量可指向非默认端口(如 bundle 测试实例):BASE=http://127.0.0.1:9393 npm run test:bridge
 import fs from "node:fs";
+
+const BASE = process.env.BASE || "http://127.0.0.1:9191";
 
 const imgB64 = fs.readFileSync("/Users/mac/.local/node/lib/node_modules/penecho/public/penecho-mark.png").toString("base64");
 
@@ -8,7 +11,7 @@ const CANVAS_CONTRACT = `You are the drawing brain for a handwritten visual Q&A 
 async function ask(label, userText) {
   console.log(`\n===== ${label} =====`);
   const t0 = Date.now();
-  const res = await fetch("http://127.0.0.1:9191/v1/messages", {
+  const res = await fetch(BASE + "/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": "test", "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
