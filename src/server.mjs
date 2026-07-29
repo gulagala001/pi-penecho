@@ -52,6 +52,12 @@ function hotReload() {
 
 initAgent(cfg);
 
+// 同步文件夹注册表落地(全新 syncthing 首次运行时建 folder;失败不阻断,配对确认时还会补)
+ensureSyncFolders().then((rs) => {
+  const bad = rs.filter((r) => !r.ok);
+  if (bad.length) console.log("[sync] 部分文件夹未落地:", bad.map((r) => `${r.id}(${r.error})`).join(", "));
+}).catch((e) => console.log("[sync] 启动落地失败(配对确认时会重试):", e.message));
+
 // 多会话:装配依赖 + 轮次入档钩子 + 启动回放(首个请求前 await sessionsReady)
 initSessions({ getAgent, getRuntime, applyRuntime, saveConfig, hardReset, replaceMessages });
 setTurnCommittedHook(appendDelta);

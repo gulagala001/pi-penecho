@@ -45,6 +45,15 @@ public class PairManager {
     }
 
     public String getSyncDeviceId() throws Exception {
+        // 本机 ID 以 REST /system/status 为准——config.xml 里 <device> 顺序不保证本机第一
+        // (接受过电脑端设备后,正则取第一个会误拿对端 ID,把 Mac 加成自己的对端)
+        try {
+            HttpURLConnection c = conn("http://127.0.0.1:8384/rest/system/status", getSyncApiKey());
+            if (c.getResponseCode() == 200) {
+                String myId = new JSONObject(readAll(c)).optString("myID", null);
+                if (myId != null && !myId.isEmpty()) return myId;
+            }
+        } catch (Exception ignored) { /* syncthing 未就绪则走回退 */ }
         Matcher m = Pattern.compile("<device id=\"([^\"]+)\"").matcher(readConfig());
         return m.find() ? m.group(1) : null;
     }

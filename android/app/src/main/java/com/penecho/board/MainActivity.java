@@ -200,9 +200,11 @@ public class MainActivity extends Activity {
     // ---------- 配对电脑(FEAT-2.2.2) ----------
 
     private EditText pairCodeInput;
+    private volatile boolean pairingActive = false;
 
     /** 入口:找电脑(子网扫门户;模拟器内置 10.0.2.2)→ 输码视图 */
     private void showPairFlow() {
+        pairingActive = true;
         showWait("正在寻找电脑…", null, null);
         new Thread(() -> {
             String portal = discoverPortalBlocking();
@@ -283,9 +285,11 @@ public class MainActivity extends Activity {
     }
 
     private void hidePairView() {
+        pairingActive = false;
         if (pairCodeInput != null && pairCodeInput.getParent() != null)
             ((LinearLayout) waitView).removeView(pairCodeInput);
         waitView.setVisibility(View.GONE);
+        if (servicesReady && web.getUrl() == null) web.loadUrl(BOARD_URL); // 就绪回调被跳过时的补载
     }
 
     private void showWait(String msg, String primaryLabel, View.OnClickListener primaryAction) {
@@ -313,9 +317,11 @@ public class MainActivity extends Activity {
 
     private void onServicesReady() {
         servicesReady = true;
-        waitView.setVisibility(View.GONE);
-        web.loadUrl(BOARD_URL);
-        checkApiKeyOnce();
+        if (!pairingActive) { // 配对流程进行中不打断(新机首启 onReady 晚于用户点配对时必现)
+            waitView.setVisibility(View.GONE);
+            web.loadUrl(BOARD_URL);
+            checkApiKeyOnce();
+        }
     }
 
     /** 首次就绪时检测桥里有没有 API key,没有就直接带用户去控制台填 */

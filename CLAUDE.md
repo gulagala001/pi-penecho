@@ -52,6 +52,10 @@ public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 - **Electron 子进程跑 Node 脚本**:`spawn(process.execPath, [entry], {env:{ELECTRON_RUN_AS_NODE:"1"}})` = 内嵌 node,干净机器零依赖;桥/白板/syncthing 三服务同哲学退避重拉,已在跑的(launchd)复用不重起。
 - **electron-builder 的 files 是允许清单**:dist/ 只放行了 index.html+APK,手机端探测的 /setup.sh 没带 → 探测路径一律用 `/`(index.html 恒在);物料多就 `asar:false` 散装,路径直给不折腾 unpack。
 - **Mac 上多个 Electron app 互相抢 activate**:验收脚本按 bundle id 置前(`bundle identifier is "com.pi-penecho.desktop"`),按名字必抢错。
+- **syncthing config.xml 第一个 `<device>` 不是本机**:接受过对端设备后顺序会变,本机 ID 永远走 REST `/rest/system/status` 的 myID(PairManager 曾因此把 Mac 加成自己的对端)。
+- **全新 syncthing 上 confirm 必缺 folder**:folder 落地(ensureSyncFolders)要在桥启动时+confirm 前各跑一次,否则「设备加了、共享 missing」。
+- **「Provider is not configured」= key 为空,不是网络问题**:pi-ai 的 applyAuth 在 overrides.apiKey 为空且 env 无 KIMI_API_KEY 时抛此错,assistant 消息 stopReason=error 原样进会话——空输出排查先看 bridge.log 的 [tutor][debug] lastMsg。
+- **模拟器 adb 杀 app 留孤儿进程**:kill 端口进程后 libnode_exec 可能残留占 9191,新桥 EADDRINUSE 崩溃循环;验收清场用 `kill -9 $(ps -A | grep libnode_exec)`(真机 force-stop/升级由系统杀全进程组,无此问题)。
 
 - **0.0.0.0 不能进浏览器**:PenEcho 启动日志的 `http://0.0.0.0:3888` 是监听声明,系统代理会 502。访问永远用 `localhost:3888`。
 - **角色边界必须写死**:不约束时 agent 会把职责文件(CLAUDE.md)当板书素材抄给学生。persona 里的边界段不许删。

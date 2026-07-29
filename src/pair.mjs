@@ -162,6 +162,7 @@ export async function confirmPair(deviceId, folderChoices) {
   const pend = pairing.pending.get(deviceId);
   if (!pend) return { ok: false, error: "该设备不在待确认列表(可能已超时或已处理)" };
 
+  await ensureSyncFolders(); // 全新 syncthing 上 folder 可能还没落地,先保证存在再共享
   await st("POST", "/config/devices", {
     deviceID: deviceId, name: pend.name, addresses: ["dynamic"], compression: "metadata",
     introducer: false, autoAcceptFolders: false, paused: false,

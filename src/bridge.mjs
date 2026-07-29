@@ -228,6 +228,7 @@ export async function runTutorTurn(text, images, res) {
   let parsed = (capturedBoard && capturedBoard.intent) ? capturedBoard : extractJson(lastAssistantText());
   if (!parsed) {
     console.log("[tutor] 输出非 JSON,要求重试。原文前300:", JSON.stringify(lastAssistantText().slice(0, 300)));
+    console.log("[tutor][debug] lastMsg:", JSON.stringify(agent.state.messages[agent.state.messages.length - 1]).slice(0, 600));
     await agent.prompt("你的上一条输出不是有效 JSON。严格按画布输出契约,只输出 JSON 本身,前后不要任何其他文字。", []);
     await agent.waitForIdle();
     if (myGen !== gen || res.writableEnded) return;

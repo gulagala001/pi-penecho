@@ -81,7 +81,16 @@
 - **FEAT**: FEAT-2.3.1
 - 内容:README/向导陌生人视角重写;Release v1.0(电脑 app+手机 APK);清退 Termux 过渡文档(归档层)
 - exit_criteria:①按 README 从零(新用户目录+新 AVD)不看任何对话记录走通全程 ②全部成功标准勾选可举证据
-- status: todo
+- status: **done**(2026-07-29)
+  - 证据 ①(陌生人全流程):备份真实环境→清空 ~/.pi-penecho+~/.config/syncthing+launchd 全灭+模拟器卸载 app→open 1.0.0 dmg 内 app → 8s 四服务自举 → 控制台填 key → 生码 → 模拟器冷装 APK → ≡配对电脑输码 → 确认(双向/仅电脑→平板) → 两端 folder 建立方向镜像正确 → 含 key 配置同步落地 → **手机端完全独立板书成功**(intent=answer+write_text,脱离电脑)
+  - 证据 ②:Release v1.0.0 已发布(dmg 180MB+APK 43MB,含验收中全部修复,--clobber 更新);README 双版陌生人视角;Termux 过渡形态清退(scripts/legacy/、docs/archive/)
+  - **验收揪出并修复的 4 个真实 bug**(全新环境才暴露):
+    1. 全新 syncthing confirm 时 folder 未落地→missing → ensureSyncFolders 自愈(桥启动时+confirm 前各一次)
+    2. PairManager.getSyncDeviceId 正则取 config.xml 第一个 device → 接受对端设备后误拿对端 ID 去 redeem(把 Mac 加成自己的对端)→ 改 REST /system/status myID 为准
+    3. 新机首启 onServicesReady 晚于用户点配对 → 无条件 waitView.GONE+loadUrl 打断配对流程 → pairingActive 守卫
+    4. adb install -r 后孤儿 node 进程占 9191 → 新桥 EADDRINUSE 崩溃循环(真机升级系统会杀全进程组,主要影响模拟器验收;清场脚本:kill -9 全部 libnode_exec/libsyncthing)
+  - 待观察:key 在陌生人验收混乱期一度从 Mac config.json 消失(疑同步冲突合并一次性现象,最后稳定;若复发查 saveConfig 调用链)
+  - 收尾:bridge.mjs 留 debug 日志行(失败路径 dump lastMsg,本次排障功臣);用户真实环境已恢复(launchd+会话存档)
 
 ## 文件清单(新建/改动)
 
