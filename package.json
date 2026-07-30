@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node src/server.mjs",
-    "check": "node --check src/server.mjs && node --check src/bridge.mjs && node --check src/config.mjs && node --check src/prompt.mjs && node --check src/tools.mjs && node --check src/pair.mjs && node --check src/sessions.mjs",
+    "check": "node --check src/server.mjs && node --check src/bridge.mjs && node --check src/config.mjs && node --check src/prompt.mjs && node --check src/tools.mjs && node --check src/pair.mjs && node --check src/sessions.mjs && node --check desktop/main.mjs && node --check scripts/patch-penecho.mjs && node --check scripts/make-ico.mjs && node --check scripts/test-openai-format.mjs && node --check scripts/test-autosave-electron.mjs",
     "smoke": "node scripts/probe.mjs",
     "test:bridge": "node scripts/test-bridge.mjs",
     "test:openai": "node scripts/test-openai-format.mjs",
