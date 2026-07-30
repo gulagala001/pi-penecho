@@ -30,6 +30,14 @@
 <h1>📋 pi-penecho 手机/平板安装</h1>
 <p class="sub">一个能在白板上和你互动、有记忆的智能体。白板、发动机、同步全部内置在一个 app 里。</p>
 
+<div class="card" id="pc-card" style="display:none">
+  <span class="step-num">0</span><b>电脑端还没装?先装它</b>
+  <p class="hint">手机/平板要和电脑配对,电脑上得先跑 pi-penecho 桌面端。按系统下载:</p>
+  <a class="btn btn-primary" id="dl-mac" href="#">macOS (Apple 芯片)</a>
+  <a class="btn btn-primary" id="dl-win" href="#" style="background:#0f766e">Windows 10/11</a>
+  <p class="hint">装完打开(Windows 首次可能弹 SmartScreen,点「仍要运行」),控制台在 localhost:9191。</p>
+</div>
+
 <div class="card">
   <span class="step-num">1</span><b>下载并安装 app</b>
   <p class="hint">点下面按钮下载(43MB,智能体发动机已内置),下载完点开安装。
@@ -69,10 +77,13 @@
 </details>
 
 <script>
-  // GitHub Pages 在线通道时,下载链接换 Release 资产
+  // GitHub Pages 在线通道时,下载链接换 Release 资产;并显示电脑端下载卡
   if (location.hostname.endsWith('github.io')) {
-    document.getElementById('dl-board').href =
-      'https://github.com/gulagala001/pi-penecho/releases/latest/download/PenEcho-board.apk';
+    const REL = 'https://github.com/gulagala001/pi-penecho/releases/latest/download/';
+    document.getElementById('dl-board').href = REL + 'PenEcho-board.apk';
+    document.getElementById('pc-card').style.display = '';
+    document.getElementById('dl-mac').href = REL + 'pi-penecho-1.1.0-mac-arm64.dmg';
+    document.getElementById('dl-win').href = REL + 'pi-penecho-1.1.0-win-x64.exe';
   }
 </script>
 

@@ -58,6 +58,7 @@ cp -L "$WORK/libicu_78.3_aarch64/$U/lib/libicuuc.so.78" "$R/libs/libicuuc.so.78"
 cp -L "$WORK/libc++_29_aarch64/$U/lib/libc++_shared.so" "$R/libs/libc++_shared.so"
 
 echo "==> [3/5] 桥 esbuild 单文件(与 build-termux-bundle 同参数)"
+# 注意:openai SDK 必须进 bundle(pi-ai openai-completions/responses API 依赖它),不可 external
 mkdir -p "$R/bridge"
 npx esbuild src/server.mjs --bundle --platform=node --format=esm --target=node20 \
   --main-fields=module,main \
@@ -65,7 +66,7 @@ npx esbuild src/server.mjs --bundle --platform=node --format=esm --target=node20
   --outfile="$R/bridge/server.mjs" \
   '--external:@aws-sdk/*' '--external:@aws-crypto/*' '--external:@smithy/*' \
   '--external:@google/*' --external:google-auth-library --external:gaxios --external:gcp-metadata \
-  '--external:@mistralai/*' --external:openai --external:sharp 2>&1 | tail -1
+  '--external:@mistralai/*' --external:sharp 2>&1 | tail -1
 
 echo "==> [4/5] 运行时资源(personas/public 与 bridge/ 同构)+ penecho pack"
 rm -rf "$R/personas" "$R/public" "$R/penecho"
@@ -76,6 +77,8 @@ PACK=$(mktemp -d)
 tar xzf "$PACK"/penecho-*.tgz -C "$PACK"
 mv "$PACK/package" "$R/penecho"
 rm -rf "$PACK"
+# 上游源码补丁:画布 autosave + 顶栏换行(与桌面端同一补丁)
+node scripts/patch-penecho.mjs "$R/penecho"
 
 echo "==> [5/5] 物料清单 + 解压清单(manifest)"
 # 版本戳(内容变化即重解)与文件清单(app 首启按单解压)

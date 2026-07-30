@@ -15,7 +15,10 @@ npm start                   # 起桥(127.0.0.1:9191)
 npm run check               # 全部源码语法检查(改完必跑)
 npm run smoke               # 冒烟:pi+端点最小调用
 npm run test:bridge         # 全链路:模拟 PenEcho 请求,验证契约+工具+记忆
+npm run test:openai         # OpenAI 三格式契约测试(mock 端点,离线)
+node scripts/test-autosave-electron.mjs  # 画板 autosave 实测(Electron 无头)
 node scripts/payload-debug.mjs   # LLM 输出排查(dump payload+事件流)
+node scripts/patch-penecho.mjs   # PenEcho 上游补丁(autosave+顶栏换行),构建自动调
 tail -f bridge.log          # 运行日志
 # 重启桥:
 kill $(lsof -tnP -iTCP:9191 -sTCP:LISTEN) && nohup node src/server.mjs > bridge.log 2>&1 &
@@ -34,9 +37,13 @@ personas/*.md    内置角色(frontmatter: name/description/workspace;正文支�
 public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 ```
 
-**请求流**:`POST /v1/messages` → 无图透传上游 / 带图进 `runTutorTurn` → 系统提示 = persona 装配 + 画布契约(PenEcho 请求 system 字段捕获,canvasSystemRef 缓存)→ agent.prompt(text, images) → 回应提取(**优先 submit_board 工具参数**,文本抠 JSON 兜底,失败重试一次)→ 包装 anthropic 响应。并发:单 agent 串行,`gen` 代际 + `agent.abort()` 实现 PenEcho supersede 语义;改这段小心 waitForIdle 死锁。
+**请求流**:`POST /v1/messages` → 无图透传上游(anthropic 格式原样转发;openai 格式经 openaiPassthrough 双向转换) / 带图进 `runTutorTurn` → 系统提示 = persona 装配 + 画布契约(PenEcho 请求 system 字段捕获,canvasSystemRef 缓存)→ agent.prompt(text, images) → 回应提取(**优先 submit_board 工具参数**,文本抠 JSON 兜底,失败重试一次)→ 包装 anthropic 响应。并发:单 agent 串行,`gen` 代际 + `agent.abort()` 实现 PenEcho supersede 语义;改这段小心 waitForIdle 死锁。
+
+**多 API 格式(v1.1)**:profile.apiFormat ∈ `anthropic`(默认,老配置自动兼容)/`openai`(chat/completions,DeepSeek/OpenRouter/中转)/`openai-responses`(官方)。bridge.mjs 注册三 provider(kimi-coding / openai-compat 自建空目录 / openai 官方目录),resolveModel 按格式路由:openai 系未知模型用干净模板构造(不带 compat → 不发厂商 thinking 参数,杂牌端点最稳;**cost 必须置零**,否则 calculateCost 崩);openaiBaseUrl 归一化(裸域名自动补 /v1,自定义路径尊重)。OPENAI_API_KEY 进 getApiKey 兜底链。
 
 **结构化输出(双通道)**:agent 注册了 `submit_board` 工具(intent/observedText/message/commands schema,constrainedSampling prefer),调用后 afterToolCall `terminate:true` 立即停轮。官方 Kimi 端点实测稳定;**中转站可能空调用({})**——所以提取时校验 `capturedBoard.intent` 非空才采信,否则退回文本抠 JSON。两条通道都不能删。
+
+**PenEcho 改动纪律**:`desktop/penecho/` 是 npm pack 解包的上游源码,**直改会被 build 覆盖**。一切画板侧修改走 `scripts/patch-penecho.mjs`(幂等锚点注入;锚点漂移显式报错),build-desktop.sh/build-rootfs.sh 解包后自动调用。现有补丁:①画布 autosave(save() 挂钩防抖写 IndexedDB 固定槽位,启动恢复,新建/清空删槽;saveSnapshot 加 quiet 模式)②顶栏 flex-wrap。
 
 **配置流**:控制台 POST /config|/profiles → saveConfig + applyRuntime(不重建 agent,保会话);文件外部改动 → 每轮请求前 hotReload(mtime)。
 
@@ -58,7 +65,13 @@ public/admin.html 控制台(原生 JS,formTouched 防轮询冲表单)
 - **全新 syncthing 上 confirm 必缺 folder**:folder 落地(ensureSyncFolders)要在桥启动时+confirm 前各跑一次,否则「设备加了、共享 missing」。
 - **「Provider is not configured」= key 为空,不是网络问题**:pi-ai 的 applyAuth 在 overrides.apiKey 为空且 env 无 KIMI_API_KEY 时抛此错,assistant 消息 stopReason=error 原样进会话——空输出排查先看 bridge.log 的 [tutor][debug] lastMsg。
 - **模拟器 adb 杀 app 留孤儿进程**:kill 端口进程后 libnode_exec 可能残留占 9191,新桥 EADDRINUSE 崩溃循环;验收清场用 `kill -9 $(ps -A | grep libnode_exec)`(真机 force-stop/升级由系统杀全进程组,无此问题)。
-- **syncthing home 两端不同**:电脑端 `~/.config/syncthing`,手机端(APK)是 `$HOME/sync`(=files/sync)。pair.mjs 的 ST_HOME 必须存在性探测自适应——写死 ~/.config 时手机端控制台配对/文件夹卡静默全坏(读不到 apikey 报「未安装」)。
+- **syncthing home 两端不同**:电脑端 `~/.config/syncthing`(Windows 是 `%LOCALAPPDATA%\Syncthing`),手机端(APK)是 `$HOME/sync`(=files/sync)。pair.mjs 的 ST_HOME 必须存在性探测+平台分支自适应——写死 ~/.config 时手机端控制台配对/文件夹卡静默全坏(读不到 apikey 报「未安装」)。desktop/main.mjs 有一份平行逻辑(独立打包无法共享),改动两边同步。
+- **esbuild 打桥 bundle 时 openai 不可 external**:pi-ai 的 openai-completions/responses API 依赖 `openai` npm 包,external 了运行时必炸(MODULE_NOT_FOUND)。mistral/google/aws 系保持 external(走不到)。openai SDK 内联后 bundle ~1.6MB,实测自包含(仅 buffer/process 外部 require)。
+- **pi-ai 模板模型必须带 cost 字段**:`calculateCost` 直接访问 `model.cost.tiers`,cost 缺失在流收尾时崩 stopReason=error(内容已回收但状态污染)。未知模型置零即可。同理 thinkingLevelMap 不设=effort 原样透传,无 compat 的 openai 模板反而不发任何 thinking 参数(最稳)。
+- **OpenAI SDK 的 baseUrl 语义含 /v1**:anthropic 端点习惯裸域名(桥自拼 /v1/messages),openai 系必须归一化(openaiBaseUrl:裸域名补 /v1,自定义路径尊重)——否则 404 且错误信息毫无指向性。
+- **electron-builder 的 per-platform files 是覆盖语义不是合并**:win.files 写了两条排除就把全局清单废了,整个仓库(android/ 794MB!)打进安装包。每个平台必须写完整清单;`"!node_modules/**"` 显式排除(bundle 自包含,省 106MB)。
+- **Mac 上构建 nsis 要 Rosetta 2**:electron-builder 下载的 makensis 是 x86_64,无 Rosetta 报 `spawn Unknown system error -86`。`sudo softwareupdate --install-rosetta --agree-to-license` 装一次即可;zip target 不受影响。
+- **Electron 无头测试两个坑**:①BrowserWindow 必须等 app.whenReady 后建(顶层建抛 "Cannot create BrowserWindow before app is ready")②spawn(process.execPath) 跑 node 脚本必须 `ELECTRON_RUN_AS_NODE:"1"`,否则起了个 Electron GUI 实例。测试脚本放 /tmp 时 ROOT 推导会错(/tmp/..=/),测试资产必须留在 scripts/ 内。
 
 - **0.0.0.0 不能进浏览器**:PenEcho 启动日志的 `http://0.0.0.0:3888` 是监听声明,系统代理会 502。访问永远用 `localhost:3888`。
 - **角色边界必须写死**:不约束时 agent 会把职责文件(CLAUDE.md)当板书素材抄给学生。persona 里的边界段不许删。

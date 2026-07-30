@@ -1,6 +1,6 @@
 {
   "name": "pi-penecho",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "PenEcho whiteboard ↔ persistent pi agent bridge: multi-persona, multi-endpoint, session memory",
   "type": "module",
   "bin": {
@@ -11,6 +11,7 @@
     "check": "node --check src/server.mjs && node --check src/bridge.mjs && node --check src/config.mjs && node --check src/prompt.mjs && node --check src/tools.mjs && node --check src/pair.mjs && node --check src/sessions.mjs",
     "smoke": "node scripts/probe.mjs",
     "test:bridge": "node scripts/test-bridge.mjs",
+    "test:openai": "node scripts/test-openai-format.mjs",
     "build:desktop": "bash scripts/build-desktop.sh",
     "dist:desktop": "npm run build:desktop && electron-builder"
   },

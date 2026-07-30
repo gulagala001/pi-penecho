@@ -1,24 +1,61 @@
 appId: com.pi-penecho.desktop
 productName: pi-penecho
 asar: false
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release
-files:
-  - desktop/main.mjs
-  - desktop/bridge-bundle.mjs
-  - desktop/penecho/**
-  - desktop/bin/**
-  - public/**
-  - personas/**
-  - dist/index.html
-  - dist/PenEcho-board.apk
-  - package.json
+# 注意:per-platform files 是覆盖语义(不与全局合并),各平台必须写完整清单
 mac:
   category: public.app-category.productivity
   target:
     - dmg
     - zip
   identity: null
+  files:
+    - desktop/main.mjs
+    - desktop/bridge-bundle.mjs
+    - desktop/penecho/**
+    - desktop/bin/mac/**
+    - public/**
+    - personas/**
+    - dist/index.html
+    - dist/PenEcho-board.apk
+    - package.json
+    - "!node_modules/**"
 win:
   target:
     - nsis
+    - zip
+  icon: desktop/assets/icon.ico
+  files:
+    - desktop/main.mjs
+    - desktop/bridge-bundle.mjs
+    - desktop/penecho/**
+    - desktop/bin/win/**
+    - public/**
+    - personas/**
+    - dist/index.html
+    - dist/PenEcho-board.apk
+    - package.json
+    - "!node_modules/**"
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: pi-penecho
+linux:
+  target:
+    - AppImage
+  files:
+    - desktop/main.mjs
+    - desktop/bridge-bundle.mjs
+    - desktop/penecho/**
+    - desktop/bin/linux/**
+    - public/**
+    - personas/**
+    - dist/index.html
+    - dist/PenEcho-board.apk
+    - package.json
+    - "!node_modules/**"

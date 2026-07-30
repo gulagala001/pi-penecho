@@ -1,14 +1,38 @@
 // 桥核心:常驻 pi agent 单例、模型解析、白板轮次处理、会话管理
 import crypto from "node:crypto";
 import { Agent } from "@earendil-works/pi-agent-core";
-import { createModels, Type } from "@earendil-works/pi-ai";
+import { createModels, createProvider, envApiKeyAuth, Type } from "@earendil-works/pi-ai";
 import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding";
+import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { createWorkspaceTools } from "./tools.mjs";
 import { buildSystemPrompt, getPersona } from "./prompt.mjs";
 import { activeProfile } from "./config.mjs";
 
 export const models = createModels();
 models.setProvider(kimiCodingProvider());
+models.setProvider(openaiProvider()); // OpenAI Responses(官方,catalog 带 GPT 系)
+// 通用 OpenAI chat/completions 兼容端点(DeepSeek/OpenRouter/中转):无 catalog,模型全走模板构造
+models.setProvider(createProvider({
+  id: "openai-compat",
+  name: "OpenAI 兼容端点",
+  baseUrl: "",
+  auth: { apiKey: envApiKeyAuth("OpenAI API key", ["OPENAI_API_KEY"]) },
+  models: [],
+  api: openAICompletionsApi(),
+}));
+
+// profile.apiFormat → pi-ai provider 路由
+const PROVIDER_BY_FORMAT = { anthropic: "kimi-coding", openai: "openai-compat", "openai-responses": "openai" };
+
+// OpenAI SDK 约定 baseUrl 含版本路径(api.openai.com/v1);用户只给域名时自动补 /v1,自定义路径原样尊重
+export function openaiBaseUrl(apiUrl) {
+  const u = String(apiUrl || "").replace(/\/+$/, "");
+  try {
+    const p = new URL(u).pathname;
+    return !p || p === "/" ? u + "/v1" : u;
+  } catch { return u; }
+}
 
 // 结构化输出通道:模型通过 submit_board 工具提交契约 JSON(官方端点实测稳);
 // 不支持的中转/弱模型会退化回文本 JSON,由 extractJson 兜底(双保险)
@@ -34,23 +58,42 @@ let agent = null;
 let runtime = { cfg: null, persona: null };
 export const turnLog = []; // 最近轮次摘要(控制台用)
 
-// ---------- 模型解析:catalog → 端点拉取数据 → k3 模板兜底(压 maxTokens) ----------
+// ---------- 模型解析:catalog → 端点拉取数据 → 模板兜底(压 maxTokens) ----------
 
 export function resolveModel(profile, fetchedModels = []) {
-  const fromCatalog = models.getModel("kimi-coding", profile.model);
+  const format = profile.apiFormat || "anthropic";
+  const providerId = PROVIDER_BY_FORMAT[format] || "kimi-coding";
+  // openai 系端点 baseUrl 需含版本路径(SDK 语义);anthropic 系原样(桥自拼 /v1/messages)
+  const baseUrl = format === "anthropic" ? profile.apiUrl : openaiBaseUrl(profile.apiUrl);
+  const fromCatalog = models.getModel(providerId, profile.model);
   if (fromCatalog) {
-    const m = { ...fromCatalog, baseUrl: profile.apiUrl };
+    const m = { ...fromCatalog, baseUrl };
     if (profile.contextWindow) m.contextWindow = profile.contextWindow;
     if (profile.maxTokens) m.maxTokens = profile.maxTokens;
     return m;
   }
-  const template = models.getModel("kimi-coding", "k3");
-  if (!template) return null;
   const hit = fetchedModels.find((m) => m.id === profile.model);
   const ctx = profile.contextWindow || hit?.context || 262144;
   const maxT = profile.maxTokens || Math.min(32768, ctx);
-  console.log(`[config] 模型 ${profile.model} 不在内置目录,按 k3 模板构造(ctx=${ctx}, maxTokens=${maxT})`);
-  return { ...template, id: profile.model, name: profile.model, baseUrl: profile.apiUrl, contextWindow: ctx, maxTokens: maxT };
+  if (format === "anthropic") {
+    const template = models.getModel("kimi-coding", "k3");
+    if (!template) return null;
+    console.log(`[config] 模型 ${profile.model} 不在内置目录,按 k3 模板构造(ctx=${ctx}, maxTokens=${maxT})`);
+    return { ...template, id: profile.model, name: profile.model, baseUrl, contextWindow: ctx, maxTokens: maxT };
+  }
+  // OpenAI 兼容端点:干净模板。无 compat 字段 → completions 不发任何 thinking 厂商参数(杂牌端点最稳);
+  // responses 下 effort 仅官方模型吃得准,用户自选格式自负。
+  console.log(`[config] 模型 ${profile.model} 不在内置目录,按 ${format} 模板构造(ctx=${ctx}, maxTokens=${maxT})`);
+  return {
+    id: profile.model, name: profile.model,
+    api: format === "openai-responses" ? "openai-responses" : "openai-completions",
+    provider: providerId,
+    baseUrl,
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, // 未知模型计费未知,置零防 calculateCost 崩
+    contextWindow: ctx, maxTokens: maxT,
+  };
 }
 
 // ---------- 图像剪枝 ----------
@@ -85,7 +128,7 @@ export function initAgent(cfg) {
       thinkingLevel: cfg.thinkingLevel,
     },
     streamFn: models.streamSimple.bind(models),
-    getApiKey: () => activeProfile(runtime.cfg).apiKey || process.env.KIMI_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || "",
+    getApiKey: () => activeProfile(runtime.cfg).apiKey || process.env.KIMI_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPENAI_API_KEY || "",
     transformContext: pruneOldImages,
     afterToolCall: (context) => {
       // 输出工具调用后立即停轮(板书已捕获,无需继续生成)

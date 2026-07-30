@@ -61,7 +61,14 @@
     <button class="ghost" onclick="deleteProfile()">删除</button>
   </div>
   <div class="row" style="margin-bottom:12px">
-    <label style="flex:2">API URL(Anthropic 兼容端点)
+    <label style="max-width:220px">API 格式
+      <select id="cfg-format">
+        <option value="anthropic">Anthropic 兼容(Kimi/中转)</option>
+        <option value="openai">OpenAI 兼容(chat/completions)</option>
+        <option value="openai-responses">OpenAI Responses(官方)</option>
+      </select>
+    </label>
+    <label style="flex:2">API URL(端点根地址)
       <input id="cfg-url" type="text" spellcheck="false">
     </label>
     <label>API Key(留空=不变)
@@ -168,7 +175,7 @@ function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": 
 
 // 表单一经手碰,轮询不再覆盖
 let formTouched = false;
-for (const id of ["cfg-url","cfg-key","cfg-model","cfg-ctx","cfg-maxtok","cfg-keep","cfg-font","cfg-thinking","cfg-persona","cfg-model-sel","pf-sel"]) {
+for (const id of ["cfg-url","cfg-key","cfg-model","cfg-ctx","cfg-maxtok","cfg-keep","cfg-font","cfg-thinking","cfg-persona","cfg-model-sel","cfg-format","pf-sel"]) {
   document.addEventListener("input", (e) => { if (e.target && e.target.id === id) formTouched = true; });
   document.addEventListener("change", (e) => { if (e.target && e.target.id === id) formTouched = true; });
 }
@@ -224,6 +231,7 @@ async function refresh() {
     $("st-turns").textContent = "消息数:" + health.turns;
     if (!formTouched) {
       fillSelect($("pf-sel"), cfg.profileNames, cfg.activeProfile);
+      $("cfg-format").value = cfg.apiFormat || "anthropic";
       $("cfg-url").value = cfg.apiUrl;
       $("cfg-key").placeholder = cfg.apiKeyMasked ? "已保存 " + cfg.apiKeyMasked : "未设置";
       syncModelWidgets(cfg.model, cfg.knownModels);
@@ -246,7 +254,7 @@ async function refresh() {
 async function fetchModels() {
   $("cfg-hint").textContent = "正在拉取模型列表…";
   const r = await j("/config/fetch-models", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ apiUrl: $("cfg-url").value, apiKey: $("cfg-key").value || undefined }) });
+    body: JSON.stringify({ apiFormat: $("cfg-format").value, apiUrl: $("cfg-url").value, apiKey: $("cfg-key").value || undefined }) });
   if (r.ok) {
     lastModels = r.models;
     formTouched = false;
@@ -260,6 +268,7 @@ async function fetchModels() {
 
 async function saveCfg() {
   const body = {
+    apiFormat: $("cfg-format").value,
     apiUrl: $("cfg-url").value, model: currentModel(),
     contextWindow: Number($("cfg-ctx").value) || null, maxTokens: Number($("cfg-maxtok").value) || null,
     persona: $("cfg-persona").value, thinkingLevel: $("cfg-thinking").value,

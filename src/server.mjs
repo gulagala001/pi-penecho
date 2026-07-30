@@ -3,14 +3,14 @@ import http from "node:http";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  CONFIG_FILE, loadConfig, saveConfig, activeProfile, maskedKey,
+  CONFIG_FILE, loadConfig, saveConfig, activeProfile, maskedKey, API_FORMATS,
 } from "./config.mjs";
 import {
   initAgent, applyRuntime, getAgent, getRuntime, runTutorTurn, undoTurn,
   hardReset, replaceMessages, setTurnCommittedHook,
-  turnLog, canvasSystemRef, fetchedModelsRef,
+  turnLog, canvasSystemRef, fetchedModelsRef, openaiBaseUrl,
 } from "./bridge.mjs";
 import { listPersonas } from "./prompt.mjs";
 import {
@@ -50,26 +50,91 @@ function hotReload() {
   } catch {}
 }
 
-initAgent(cfg);
+// 仅作为脚本主入口时拉起服务与副作用;被 import(测试/工具)时只暴露纯函数
+const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 
-// 同步文件夹注册表落地(全新 syncthing 首次运行时建 folder;失败不阻断,配对确认时还会补)
-ensureSyncFolders().then((rs) => {
-  const bad = rs.filter((r) => !r.ok);
-  if (bad.length) console.log("[sync] 部分文件夹未落地:", bad.map((r) => `${r.id}(${r.error})`).join(", "));
-}).catch((e) => console.log("[sync] 启动落地失败(配对确认时会重试):", e.message));
+if (isMain) {
+  initAgent(cfg);
+  // 同步文件夹注册表落地(全新 syncthing 首次运行时建 folder;失败不阻断,配对确认时还会补)
+  ensureSyncFolders().then((rs) => {
+    const bad = rs.filter((r) => !r.ok);
+    if (bad.length) console.log("[sync] 部分文件夹未落地:", bad.map((r) => `${r.id}(${r.error})`).join(", "));
+  }).catch((e) => console.log("[sync] 启动落地失败(配对确认时会重试):", e.message));
 
-// 多会话:装配依赖 + 轮次入档钩子 + 启动回放(首个请求前 await sessionsReady)
-initSessions({ getAgent, getRuntime, applyRuntime, saveConfig, hardReset, replaceMessages });
-setTurnCommittedHook(appendDelta);
-const sessionsReady = restoreCurrent().catch((e) => { console.error("[sessions] 启动恢复失败:", e.message); });
+  // 多会话:装配依赖 + 轮次入档钩子 + 启动回放(首个请求前 await sessionsReady)
+  initSessions({ getAgent, getRuntime, applyRuntime, saveConfig, hardReset, replaceMessages });
+  setTurnCommittedHook(appendDelta);
+}
+const sessionsReady = isMain
+  ? restoreCurrent().catch((e) => { console.error("[sessions] 启动恢复失败:", e.message); })
+  : Promise.resolve();
 
 const upstreamEndpoint = () => activeProfile(cfg).apiUrl.replace(/\/+$/, "") + "/v1/messages";
 
+// anthropic 请求体 → OpenAI 消息数组(system 提头,content 拍平为文本;无图请求才走这里)
+function anthropicToOpenAIMessages(src) {
+  const messages = [];
+  if (typeof src.system === "string" && src.system) messages.push({ role: "system", content: src.system });
+  for (const m of Array.isArray(src.messages) ? src.messages : []) {
+    const text = Array.isArray(m.content)
+      ? m.content.filter((b) => b?.type === "text").map((b) => b.text || "").join("\n")
+      : String(m.content || "");
+    messages.push({ role: m.role === "assistant" ? "assistant" : "user", content: text });
+  }
+  return messages;
+}
+
+const anthropicShape = (id, model, text, usage = {}) => ({
+  id: id || "msg_bridge", type: "message", role: "assistant", model,
+  content: [{ type: "text", text }], stop_reason: "end_turn", stop_sequence: null,
+  usage: { input_tokens: usage.input || 0, output_tokens: usage.output || 0 },
+});
+
+// openai 系端点的无图透传:请求转成 chat/completions 或 responses,回包转回 anthropic 形状(配置测试才能真测通)
+export async function openaiPassthrough(profile, src, res) {
+  const base = openaiBaseUrl(profile.apiUrl);
+  const key = profile.apiKey || process.env.OPENAI_API_KEY || "";
+  const messages = anthropicToOpenAIMessages(src);
+  const model = src.model || profile.model;
+  const isResponses = (profile.apiFormat || "anthropic") === "openai-responses";
+  const body = isResponses
+    ? { model, input: messages }
+    : { model, messages, max_tokens: src.max_tokens || 1024, stream: false };
+  try {
+    const up = await fetch(base + (isResponses ? "/responses" : "/chat/completions"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000),
+    });
+    const raw = await up.text();
+    if (!up.ok) { res.writeHead(up.status, { "Content-Type": "application/json" }); return res.end(raw); }
+    const j = JSON.parse(raw);
+    if (isResponses) {
+      const text = (j.output || []).filter((o) => o?.type === "message")
+        .flatMap((o) => o.content || []).filter((c) => c?.type === "output_text").map((c) => c.text || "").join("");
+      return json(res, 200, anthropicShape(j.id, j.model || model, text, { input: j.usage?.input_tokens, output: j.usage?.output_tokens }));
+    }
+    const out = j.choices?.[0]?.message?.content ?? "";
+    return json(res, 200, anthropicShape(j.id, j.model || model, typeof out === "string" ? out : JSON.stringify(out),
+      { input: j.usage?.prompt_tokens, output: j.usage?.completion_tokens }));
+  } catch (err) { return json(res, 502, { error: { message: String(err.message || err) } }); }
+}
+
 function publicConfig() {
   const p = activeProfile(cfg);
+  const format = p.apiFormat || "anthropic";
+  // 各格式占位模型列表(未从端点拉取时兜底)
+  const fallbackModels = format === "anthropic"
+    ? ["k3", "k3-256k", "kimi-for-coding", "kimi-for-coding-highspeed"]
+    : format === "openai-responses"
+      ? ["gpt-5", "gpt-5-mini", "o4-mini"]
+      : ["gpt-4o", "gpt-4o-mini", "deepseek-chat", "deepseek-reasoner"];
   return {
     activeProfile: cfg.activeProfile,
     profileNames: Object.keys(cfg.profiles),
+    apiFormat: format,
+    apiFormats: API_FORMATS,
     apiUrl: p.apiUrl,
     apiKeyMasked: maskedKey(p),
     model: p.model,
@@ -80,7 +145,7 @@ function publicConfig() {
     boardFontSize: cfg.boardFontSize,
     persona: cfg.persona,
     personas: listPersonas().map((x) => ({ id: x.id, name: x.name, description: x.description, workspace: x.workspace })),
-    knownModels: fetchedModelsRef.value.length ? fetchedModelsRef.value : ["k3", "k3-256k", "kimi-for-coding", "kimi-for-coding-highspeed"].map((id) => ({ id, name: id })),
+    knownModels: fetchedModelsRef.value.length ? fetchedModelsRef.value : fallbackModels.map((id) => ({ id, name: id })),
     knownThinking: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
   };
 }
@@ -121,9 +186,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/config/fetch-models") {
     const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
     try {
-      const url = String(body.apiUrl || activeProfile(cfg).apiUrl).replace(/\/+$/, "");
-      const key = body.apiKey || activeProfile(cfg).apiKey;
-      const r = await fetch(url + "/v1/models", { headers: { "x-api-key": key, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(15000) });
+      const profile = activeProfile(cfg);
+      const format = String(body.apiFormat || profile.apiFormat || "anthropic");
+      const url = String(body.apiUrl || profile.apiUrl).replace(/\/+$/, "");
+      const key = body.apiKey || profile.apiKey;
+      // anthropic 系用 x-api-key + /v1/models;openai 系用 Bearer + 归一化 base 后的 /models
+      const headers = format === "anthropic"
+        ? { "x-api-key": key, "anthropic-version": "2023-06-01" }
+        : { Authorization: `Bearer ${key}` };
+      const modelsUrl = format === "anthropic" ? url + "/v1/models" : openaiBaseUrl(url) + "/models";
+      const r = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(15000) });
       if (!r.ok) throw new Error(`端点返回 ${r.status}: ${(await r.text()).slice(0, 200)}`);
       const j = await r.json();
       fetchedModelsRef.value = (j.data || []).map((m) => ({ id: m.id, name: m.display_name || m.id, context: m.context_length }));
@@ -135,6 +207,11 @@ const server = http.createServer(async (req, res) => {
     const patch = JSON.parse((await readBody(req)).toString("utf8"));
     try {
       const p = activeProfile(cfg);
+      if (patch.apiFormat !== undefined) {
+        const f = String(patch.apiFormat);
+        if (!API_FORMATS.includes(f)) throw new Error("apiFormat 须为 " + API_FORMATS.join("/"));
+        p.apiFormat = f;
+      }
       if (patch.apiUrl !== undefined) {
         const u = String(patch.apiUrl).trim().replace(/\/+$/, "");
         if (!/^https?:\/\/[^/]+/.test(u)) throw new Error("apiUrl 格式不对");
@@ -282,11 +359,13 @@ const server = http.createServer(async (req, res) => {
   console.log(`[req] hasImage=${hasImage} system=${typeof body.system === "string" ? body.system.length : typeof body.system} content=${Array.isArray(content) ? content.map((b) => b?.type).join("+") : typeof content}`);
 
   if (!hasImage) {
-    // 无图请求(配置测试等):原样透传上游,不进会话
+    // 无图请求(配置测试等):openai 系端点走格式转换透传;anthropic 系原样透传,均不进会话
+    const profile = activeProfile(cfg);
+    if ((profile.apiFormat || "anthropic") !== "anthropic") return openaiPassthrough(profile, body, res);
     try {
       const headers = {};
       for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k)) headers[k] = v;
-      headers["x-api-key"] = activeProfile(cfg).apiKey || headers["x-api-key"];
+      headers["x-api-key"] = profile.apiKey || headers["x-api-key"];
       const up = await fetch(upstreamEndpoint(), { method: "POST", headers, body: raw });
       const buf = Buffer.from(await up.arrayBuffer());
       const rh = {};
@@ -318,7 +397,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "0.0.0.0", () => {
+if (isMain) server.listen(PORT, "0.0.0.0", () => {
   const p = activeProfile(cfg);
   console.log(`pi-penecho  http://127.0.0.1:${PORT}`);
   console.log(`profile=${cfg.activeProfile}  model=${p.model}  thinking=${cfg.thinkingLevel}  persona=${cfg.persona}  keepImages=${cfg.keepImages}`);
@@ -341,7 +420,7 @@ const MIME = {
   ".sh": "text/plain; charset=utf-8",
   ".md": "text/markdown; charset=utf-8",
 };
-if (fs.existsSync(DIST_DIR)) {
+if (isMain && fs.existsSync(DIST_DIR)) {
   const portal = http.createServer((req, res) => {
     try {
       let p = decodeURIComponent((req.url || "/").split("?")[0]);

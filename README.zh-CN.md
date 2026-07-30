@@ -4,17 +4,20 @@
 
 你在 [PenEcho](https://github.com/penecho/penecho) 白板上手写 → 智能体看见你的笔迹、记得之前每一轮、用板书回答(文字 / LaTeX 公式 / 函数图像),还能读写你指定的工作区文件——长期记忆放文件,会话只是工作台。
 
-**电脑 + 安卓手机/平板双端**:电脑端一个图形 app,手机端一个 APK(白板、智能体发动机、同步全内置),同一 WiFi 扫码配对,多个项目文件夹各自同步,项目内多会话可切换。
+**电脑 + 安卓手机/平板双端**:电脑端一个图形 app(macOS / Windows),手机端一个 APK(白板、智能体发动机、同步全内置),同一 WiFi 扫码配对,多个项目文件夹各自同步,项目内多会话可切换。
 
 ## 三步上手
 
 ### ① 电脑:下载 app,双击打开
 
-从 [Releases](https://github.com/gulagala001/pi-penecho/releases/latest) 下载 `pi-penecho-x.y.z-arm64.dmg`,拖进「应用程序」双击。
+从 [Releases](https://github.com/gulagala001/pi-penecho/releases/latest) 下载:
+- **macOS**:`pi-penecho-x.y.z-mac-arm64.dmg`,拖进「应用程序」双击。首次打开若提示「未验证的开发者」:右键 app → 打开 → 打开。
+- **Windows**:`pi-penecho-x.y.z-win-x64.exe`(安装版)或 `-win-x64.zip`(免安装,解压即用)。首次运行可能弹 SmartScreen →「更多信息」→「仍要运行」。
 
-> 首次打开若提示「未验证的开发者」:右键 app → 打开 → 打开。(app 未买苹果签名,源码全公开可自查)
+> 安装包未买平台签名,源码全公开可自查。
 
-窗口里就是控制台。在「端点 Profile」卡粘贴你的 API key(任意 Anthropic 兼容端点,如 Kimi)→ 保存。
+窗口里就是控制台。在「端点 Profile」卡选 API 格式、粘贴你的 API key → 保存。
+支持三类端点:**Anthropic 兼容**(Kimi 等)、**OpenAI 兼容**(DeepSeek / OpenRouter / 各类中转,chat/completions)、**OpenAI Responses**(官方 GPT-5 系)。
 
 ### ② 手机/平板:扫码装 app
 

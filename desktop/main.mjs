@@ -16,8 +16,14 @@ fs.mkdirSync(LOG_DIR, { recursive: true });
 
 const BRIDGE_BUNDLE = path.join(ROOT, "desktop", "bridge-bundle.mjs");
 const PENECHO_ENTRY = path.join(ROOT, "desktop", "penecho", "server.js");
-const SYNCTHING_BIN = path.join(ROOT, "desktop", "bin", process.platform === "win32" ? "syncthing.exe" : "syncthing");
-const ST_HOME = path.join(os.homedir(), ".config", "syncthing");
+// syncthing 二进制按平台分目录(build-desktop.sh 备料);win32→win, darwin→mac
+const BIN_PLATFORM_DIR = { win32: "win", darwin: "mac", linux: "linux" }[process.platform] || process.platform;
+const SYNCTHING_BIN = path.join(ROOT, "desktop", "bin", BIN_PLATFORM_DIR, process.platform === "win32" ? "syncthing.exe" : "syncthing");
+// syncthing home 平台自适应:Windows 用 %LOCALAPPDATA%\Syncthing;mac/Linux 用 ~/.config/syncthing
+// 注意与 src/pair.mjs 的 ST_HOME 逻辑保持同步(两边独立打包,无法共享代码)
+const ST_HOME = process.platform === "win32"
+  ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "Syncthing")
+  : path.join(os.homedir(), ".config", "syncthing");
 
 const children = []; // 本进程 spawn 的子进程(退出时回收;外部已跑的不碰)
 

@@ -7,11 +7,15 @@ export const CONFIG_DIR = path.join(os.homedir(), ".pi-penecho");
 export const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 const LEGACY_FILE = path.join(os.homedir(), ".penecho", "tutor-bridge.json");
 
+// API 格式:anthropic=Anthropic Messages 兼容(Kimi/中转);openai=OpenAI chat/completions 兼容;openai-responses=OpenAI Responses(官方)
+export const API_FORMATS = ["anthropic", "openai", "openai-responses"];
+
 export const CONFIG_DEFAULTS = {
   version: 2,
   activeProfile: "default",
   profiles: {
     default: {
+      apiFormat: "anthropic",
       apiUrl: "https://api.kimi.com/coding",
       apiKey: "",
       model: "k3",
@@ -41,6 +45,7 @@ function migrateLegacy() {
     const old = JSON.parse(fs.readFileSync(LEGACY_FILE, "utf8"));
     const cfg = structuredClone(CONFIG_DEFAULTS);
     cfg.profiles.default = {
+      apiFormat: "anthropic",
       apiUrl: old.apiUrl || CONFIG_DEFAULTS.profiles.default.apiUrl,
       apiKey: old.apiKey || "",
       model: old.model || "k3",

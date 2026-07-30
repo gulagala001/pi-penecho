@@ -5,18 +5,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// syncthing home 平台自适应:手机端(APK 内嵌)用 $HOME/sync,电脑端用 ~/.config/syncthing
+// syncthing home 平台自适应:手机端(APK 内嵌)用 $HOME/sync;Windows 用 %LOCALAPPDATA%\Syncthing;mac/Linux 用 ~/.config/syncthing
+// 注意与 desktop/main.mjs 的 ST_HOME 逻辑保持同步(两边独立打包,无法共享代码)
 const ST_HOME = fs.existsSync(path.join(os.homedir(), "sync", "config.xml"))
   ? path.join(os.homedir(), "sync")
-  : path.join(os.homedir(), ".config", "syncthing");
+  : process.platform === "win32"
+    ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "Syncthing")
+    : path.join(os.homedir(), ".config", "syncthing");
 const API = "http://127.0.0.1:8384/rest";
 const CONFIG_DIR = path.join(os.homedir(), ".pi-penecho");
 const SYNC_FOLDERS_FILE = path.join(CONFIG_DIR, "sync-folders.json");
 
-// 默认注册表(首次自动生成;与 install-syncthing-mac.sh 注入的两项兼容)
+// 默认注册表(首次自动生成):只放恒存在的配置同步项,业务文件夹由用户在控制台自行添加
 const DEFAULT_FOLDERS = {
   folders: [
-    { id: "kaoyan-new", label: "考研new", macPath: "~/Projects/考研new", tabletPath: "~/Projects/考研new", direction: "both", enabled: true },
     { id: "pi-penecho-config", label: "配置(含 key/人设)", macPath: "~/.pi-penecho", tabletPath: "~/.pi-penecho", direction: "both", enabled: true },
   ],
 };
@@ -58,7 +60,7 @@ function readApiKey() {
 
 async function st(method, p, body) {
   const key = readApiKey();
-  if (!key) throw new Error("Syncthing 未安装或未初始化 — 请先在电脑端运行 scripts/install-syncthing-mac.sh");
+  if (!key) throw new Error("Syncthing 未安装或未初始化 — 桌面端启动后会自动初始化;或先手动安装运行 Syncthing");
   const res = await fetch(API + p, {
     method,
     headers: { "X-API-Key": key, "Content-Type": "application/json" },

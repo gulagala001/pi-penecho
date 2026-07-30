@@ -10,11 +10,14 @@ A whiteboard companion that actually *remembers*. Handwrite on a [PenEcho](https
 
 ### ① Desktop: download, double-click
 
-Grab `pi-penecho-x.y.z-arm64.dmg` from [Releases](https://github.com/gulagala001/pi-penecho/releases/latest), drag to Applications, open.
+Grab from [Releases](https://github.com/gulagala001/pi-penecho/releases/latest):
+- **macOS**: `pi-penecho-x.y.z-mac-arm64.dmg` → drag to Applications. "Unidentified developer"? Right-click → Open → Open.
+- **Windows**: `pi-penecho-x.y.z-win-x64.exe` (installer) or `-win-x64.zip` (portable, unzip & run). SmartScreen may warn → "More info" → "Run anyway".
 
-> macOS may warn "unidentified developer" — right-click → Open → Open. (Unsigned; source is fully public.)
+> Packages are unsigned; source is fully public.
 
-The window is the console. Paste your API key (any Anthropic-compatible endpoint, e.g. Kimi) in the **Profile** card → Save.
+The window is the console. Pick the **API format** and paste your API key in the Profile card → Save.
+Three endpoint families are supported: **Anthropic-compatible** (Kimi etc.), **OpenAI-compatible** (DeepSeek / OpenRouter / relays, chat/completions), and **OpenAI Responses** (official GPT-5 family).
 
 ### ② Phone/tablet: scan, install
 
