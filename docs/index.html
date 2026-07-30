@@ -34,8 +34,8 @@
   <span class="step-num">0</span><b>电脑端还没装?先装它</b>
   <p class="hint">手机/平板要和电脑配对,电脑上得先跑 pi-penecho 桌面端。按系统下载:</p>
   <a class="btn btn-primary" id="dl-mac" href="#">macOS (Apple 芯片)</a>
-  <a class="btn btn-primary" id="dl-win" href="#" style="background:#0f766e">Windows 10/11</a>
-  <p class="hint">装完打开(Windows 首次可能弹 SmartScreen,点「仍要运行」),控制台在 localhost:9191。</p>
+  <a class="btn btn-primary" id="dl-win" href="#" style="background:#0f766e">Windows(解压即用)</a>
+  <p class="hint">装完打开(Windows 解压后双击 pi-penecho.exe,首次可能弹 SmartScreen →「仍要运行」),控制台在 localhost:9191。</p>
 </div>
 
 <div class="card">
@@ -83,7 +83,7 @@
     document.getElementById('dl-board').href = REL + 'PenEcho-board.apk';
     document.getElementById('pc-card').style.display = '';
     document.getElementById('dl-mac').href = REL + 'pi-penecho-1.1.0-mac-arm64.dmg';
-    document.getElementById('dl-win').href = REL + 'pi-penecho-1.1.0-win-x64.exe';
+    document.getElementById('dl-win').href = REL + 'pi-penecho-1.1.0-win-x64.zip';
   }
 </script>
 

@@ -12,7 +12,7 @@
 
 从 [Releases](https://github.com/gulagala001/pi-penecho/releases/latest) 下载:
 - **macOS**:`pi-penecho-x.y.z-mac-arm64.dmg`,拖进「应用程序」双击。首次打开若提示「未验证的开发者」:右键 app → 打开 → 打开。
-- **Windows**:`pi-penecho-x.y.z-win-x64.exe`(安装版)或 `-win-x64.zip`(免安装,解压即用)。首次运行可能弹 SmartScreen →「更多信息」→「仍要运行」。
+- **Windows**:`pi-penecho-x.y.z-win-x64.zip`(解压后双击 `pi-penecho.exe`)。首次运行可能弹 SmartScreen →「更多信息」→「仍要运行」。
 
 > 安装包未买平台签名,源码全公开可自查。
 

@@ -12,7 +12,7 @@ A whiteboard companion that actually *remembers*. Handwrite on a [PenEcho](https
 
 Grab from [Releases](https://github.com/gulagala001/pi-penecho/releases/latest):
 - **macOS**: `pi-penecho-x.y.z-mac-arm64.dmg` → drag to Applications. "Unidentified developer"? Right-click → Open → Open.
-- **Windows**: `pi-penecho-x.y.z-win-x64.exe` (installer) or `-win-x64.zip` (portable, unzip & run). SmartScreen may warn → "More info" → "Run anyway".
+- **Windows**: `pi-penecho-x.y.z-win-x64.zip` (portable, unzip & run `pi-penecho.exe`). SmartScreen may warn → "More info" → "Run anyway".
 
 > Packages are unsigned; source is fully public.
 
